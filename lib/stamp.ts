@@ -38,7 +38,33 @@ export type StampCollectionResult =
   | { ok: true; station: { id: string; name: string }; duplicate: boolean; message: string }
   | { ok: false; error: string };
 
+export type PreparedStampCollectionRequest =
+  | { registrationRequired: true; pendingStampToken: string }
+  | { registrationRequired: false; result: StampCollectionResult };
+
 const INVALID_QR_ERROR = "This station QR is expired, used, or invalid. Please ask the station staff for a new QR.";
+
+export async function prepareStampCollectionRequest({
+  store,
+  sessionId,
+  token,
+  now = () => new Date(),
+}: {
+  store: StampCollectionStore;
+  sessionId?: string | null;
+  token: string;
+  now?: () => Date;
+}): Promise<PreparedStampCollectionRequest> {
+  const pendingStampToken = token.trim();
+  if (!sessionId) {
+    return { registrationRequired: true, pendingStampToken };
+  }
+
+  return {
+    registrationRequired: false,
+    result: await collectStationStamp({ store, sessionId, token: pendingStampToken, now }),
+  };
+}
 
 export async function collectStationStamp({
   store,

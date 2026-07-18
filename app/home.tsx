@@ -8,10 +8,12 @@ export async function Home({
   healthPromise = getHealthStatus(),
   delegateHomePromise = Promise.resolve({ identified: false }),
   error,
+  pendingStamp = false,
 }: {
   healthPromise?: Promise<HealthStatus>;
   delegateHomePromise?: Promise<DelegateHomeResult>;
   error?: string;
+  pendingStamp?: boolean;
 }) {
   const [health, delegateHome] = await Promise.all([healthPromise, delegateHomePromise]);
 
@@ -49,6 +51,9 @@ export async function Home({
           <>
             <h2 id="delegate-title">Join the lucky draw</h2>
             <p className="lead">Scan your badge QR or manually enter your registration number.</p>
+            {pendingStamp ? (
+              <p className="status-open">Register first, then we will apply your pending station stamp if the QR is still valid.</p>
+            ) : null}
             {error ? <p role="alert" className="health-error">{error}</p> : null}
             <form action={identifyDelegateAction} className="control-form">
               <label>

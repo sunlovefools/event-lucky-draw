@@ -5,6 +5,7 @@ import { render, screen } from "@testing-library/react";
 import { StampResult } from "@/app/stamp/[token]/stamp-result";
 import {
   collectStationStamp,
+  prepareStampCollectionRequest,
   type StampCollectionStore,
 } from "@/lib/stamp";
 
@@ -33,6 +34,57 @@ function createStore(overrides: Partial<StampCollectionStore> = {}): StampCollec
 
   return store;
 }
+
+describe("pending stamp after registration", () => {
+  it("sends an unregistered station QR visitor to registration with the token preserved", async () => {
+    const result = await prepareStampCollectionRequest({
+      store: createStore(),
+      sessionId: undefined,
+      token: "pending-token",
+    });
+
+    expect(result).toEqual({ registrationRequired: true, pendingStampToken: "pending-token" });
+  });
+
+  it("applies a valid pending QR after registration creates a delegate session", async () => {
+    const result = await prepareStampCollectionRequest({
+      store: createStore(),
+      sessionId: "delegate-session-1",
+      token: "pending-token",
+      now: () => new Date("2025-01-01T00:00:00.000Z"),
+    });
+
+    expect(result).toEqual({
+      registrationRequired: false,
+      result: {
+        ok: true,
+        station: { id: "station-1", name: "AI Booth" },
+        duplicate: false,
+        message: "AI Booth stamp collected.",
+      },
+    });
+  });
+
+  it("shows the normal QR error when a pending QR expires before registration completes", async () => {
+    const result = await prepareStampCollectionRequest({
+      store: createStore({
+        async consumeStationQrToken() {
+          return null;
+        },
+      }),
+      sessionId: "delegate-session-1",
+      token: "expired-pending-token",
+    });
+
+    expect(result).toEqual({
+      registrationRequired: false,
+      result: {
+        ok: false,
+        error: "This station QR is expired, used, or invalid. Please ask the station staff for a new QR.",
+      },
+    });
+  });
+});
 
 describe("delegate station stamp collection", () => {
   it("awards a station stamp from a valid QR and names the collected station", async () => {

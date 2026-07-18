@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Unregistered station QR opens registration flow
-- [ ] Pending stamp survives registration
-- [ ] Valid pending QR is applied after registration
-- [ ] Expired/used pending QR shows normal error
+- [x] Unregistered station QR opens registration flow
+- [x] Pending stamp survives registration
+- [x] Valid pending QR is applied after registration
+- [x] Expired/used pending QR shows normal error

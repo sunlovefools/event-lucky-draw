@@ -250,6 +250,16 @@ describe("delegate home UI", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
   });
 
+  it("tells unregistered delegates a pending station stamp will apply after registration", async () => {
+    render(await Home({
+      healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:00:00.000Z" }),
+      delegateHomePromise: Promise.resolve({ identified: false }),
+      pendingStamp: true,
+    }));
+
+    expect(screen.getByText("Register first, then we will apply your pending station stamp if the QR is still valid.")).toBeInTheDocument();
+  });
+
   it("welcomes back remembered delegates", async () => {
     render(await Home({
       healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:00:00.000Z" }),
