@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] Badge QR registration works
-- [ ] Manual registration number fallback works
-- [ ] Full name is required on first registration
-- [ ] Same browser resumes session
-- [ ] Same registration number resumes existing progress
-- [ ] New registration is blocked when participation is closed
+- [x] Badge QR registration works
+- [x] Manual registration number fallback works
+- [x] Full name is required on first registration
+- [x] Same browser resumes session
+- [x] Same registration number resumes existing progress
+- [x] New registration is blocked when participation is closed

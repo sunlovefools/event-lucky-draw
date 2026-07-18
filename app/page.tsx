@@ -1,5 +1,29 @@
-import { Home } from "@/app/home";
+import { cookies } from "next/headers";
 
-export default async function Page() {
-  return <Home />;
+import { DELEGATE_SESSION_COOKIE } from "@/app/delegate/session";
+import { Home } from "@/app/home";
+import { getDelegateHome, SupabaseDelegateStore } from "@/lib/delegate";
+
+function errorMessage(error?: string) {
+  if (error === "registration-closed") {
+    return "Registration is closed.";
+  }
+
+  if (error === "delegate-invalid") {
+    return "Enter a registration number and full name to register.";
+  }
+
+  return undefined;
+}
+
+export default async function Page({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
+  const [cookieStore, params] = await Promise.all([cookies(), searchParams]);
+  const sessionId = cookieStore.get(DELEGATE_SESSION_COOKIE)?.value;
+
+  return (
+    <Home
+      delegateHomePromise={getDelegateHome({ store: new SupabaseDelegateStore(), sessionId })}
+      error={errorMessage(params?.error)}
+    />
+  );
 }

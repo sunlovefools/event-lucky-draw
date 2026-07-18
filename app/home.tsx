@@ -1,9 +1,19 @@
 import React from "react";
 
+import { identifyDelegateAction } from "@/app/delegate/actions";
+import type { DelegateHomeResult } from "@/lib/delegate";
 import { getHealthStatus, type HealthStatus } from "@/lib/health";
 
-export async function Home({ healthPromise = getHealthStatus() }: { healthPromise?: Promise<HealthStatus> }) {
-  const health = await healthPromise;
+export async function Home({
+  healthPromise = getHealthStatus(),
+  delegateHomePromise = Promise.resolve({ identified: false }),
+  error,
+}: {
+  healthPromise?: Promise<HealthStatus>;
+  delegateHomePromise?: Promise<DelegateHomeResult>;
+  error?: string;
+}) {
+  const [health, delegateHome] = await Promise.all([healthPromise, delegateHomePromise]);
 
   return (
     <main className="shell">
@@ -11,6 +21,33 @@ export async function Home({ healthPromise = getHealthStatus() }: { healthPromis
         <p className="eyebrow">Event station quest</p>
         <h1 id="home-title">Event Station Quest Lucky Draw</h1>
         <p className="lead">Hosted app scaffold is online.</p>
+      </section>
+
+      <section className="health-card" aria-labelledby="delegate-title">
+        {delegateHome.identified ? (
+          <>
+            <h2 id="delegate-title">Welcome back, {delegateHome.delegate.fullName}</h2>
+            <p>Registration number: {delegateHome.delegate.registrationNumber}</p>
+            <p className="lead">Your progress will resume on this device.</p>
+          </>
+        ) : (
+          <>
+            <h2 id="delegate-title">Join the lucky draw</h2>
+            <p className="lead">Scan your badge QR or manually enter your registration number.</p>
+            {error ? <p role="alert" className="health-error">{error}</p> : null}
+            <form action={identifyDelegateAction} className="control-form">
+              <label>
+                Badge QR payload or registration number
+                <input name="badgePayload" autoComplete="off" required />
+              </label>
+              <label>
+                Full name
+                <input name="fullName" autoComplete="name" />
+              </label>
+              <button type="submit">Continue</button>
+            </form>
+          </>
+        )}
       </section>
 
       <section className="health-card" aria-label="Application health">
