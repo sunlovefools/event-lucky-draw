@@ -1,7 +1,7 @@
 import React from "react";
 
 import { generateStationQrAction, loginVendorAction } from "@/app/vendor/actions";
-import type { VendorDashboardResult } from "@/lib/vendor";
+import type { VendorDashboardResult } from "@/lib/vendor/portal";
 
 export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardResult; error?: string }) {
   if (!dashboard.authorized) {

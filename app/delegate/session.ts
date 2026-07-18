@@ -1,1 +1,1 @@
-export const DELEGATE_SESSION_COOKIE = "delegate_session";
+export { DELEGATE_SESSION_COOKIE } from "@/lib/session-cookies";

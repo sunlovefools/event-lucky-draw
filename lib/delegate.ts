@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { delegateFromRow, findValidDelegateSession as queryValidDelegateSession, type DelegateRow, type SessionDelegate, type ValidDelegateSession } from "@/lib/delegate-session";
 import { readParticipationOpen as queryParticipationOpen } from "@/lib/participation";
+import { normalizeFullName, normalizeRegistrationNumber } from "@/lib/shared/normalize";
 
 export type Delegate = SessionDelegate;
 
@@ -57,14 +58,6 @@ export type DelegateHomeResult =
   | { identified: true; delegate: Delegate; progress: DelegateProgress; finalSurvey: DelegateFinalSurvey };
 
 const DELEGATE_SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
-
-function normalizeRegistrationNumber(registrationNumber: string) {
-  return registrationNumber.trim();
-}
-
-function normalizeFullName(fullName: string) {
-  return fullName.trim().replace(/\s+/g, " ");
-}
 
 function extractRegistrationNumberFromBadgePayload(payload: string) {
   const trimmed = payload.trim();

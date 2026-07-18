@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { VENDOR_SESSION_COOKIE } from "@/app/vendor/session";
-import { authenticateVendor, generateStationQr, SupabaseVendorStore } from "@/lib/vendor";
+import { authenticateVendor, SupabaseVendorAuthStore } from "@/lib/auth/vendor-auth";
+import { generateStationQr, SupabaseVendorStore } from "@/lib/vendor/portal";
 
 async function currentVendorSessionId() {
   const cookieStore = await cookies();
@@ -13,7 +14,7 @@ async function currentVendorSessionId() {
 
 export async function loginVendorAction(formData: FormData) {
   const result = await authenticateVendor({
-    store: new SupabaseVendorStore(),
+    store: new SupabaseVendorAuthStore(),
     username: String(formData.get("username") ?? ""),
     password: String(formData.get("password") ?? ""),
   });

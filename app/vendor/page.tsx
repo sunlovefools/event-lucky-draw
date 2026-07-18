@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 
 import { VENDOR_SESSION_COOKIE } from "@/app/vendor/session";
 import { VendorPortal } from "@/app/vendor/vendor-portal";
-import { getVendorDashboard, SupabaseVendorStore } from "@/lib/vendor";
+import { getVendorDashboard, SupabaseVendorStore } from "@/lib/vendor/portal";
 
 function errorMessage(error?: string) {
   if (error === "invalid-login") {

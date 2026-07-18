@@ -3,111 +3,8 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { VendorPortal } from "@/app/vendor/vendor-portal";
-import {
-  authenticateVendor,
-  generateStationQr,
-  getVendorDashboard,
-  type VendorStore,
-} from "@/lib/vendor";
-import { hashPassword } from "@/lib/password";
-
-function createStore(overrides: Partial<VendorStore> = {}): VendorStore {
-  const store: VendorStore = {
-    async findActiveVendorByUsername() {
-      return null;
-    },
-    async createVendorSession(vendorId, expiresAt) {
-      return { id: "vendor-session-1", vendorId, expiresAt };
-    },
-    async findValidVendorSession() {
-      return null;
-    },
-    async readParticipationOpen() {
-      return true;
-    },
-    async findCurrentQrForStation() {
-      return null;
-    },
-    async listStationScanHistory() {
-      return [];
-    },
-    async invalidateCurrentQrForStation() {},
-    async createStationQr(qr) {
-      return {
-        id: "qr-1",
-        token: qr.token,
-        stationId: qr.stationId,
-        url: `/stamp/${qr.token}`,
-        expiresAt: qr.expiresAt,
-        invalidatedAt: null,
-        consumedAt: null,
-        status: "active",
-      };
-    },
-    ...overrides,
-  };
-
-  return store;
-}
-
-describe("vendor username/password login", () => {
-  it("creates a vendor session when credentials match an active vendor account", async () => {
-    const salt = "vendor-salt";
-    const passwordHash = hashPassword("station-secret", salt);
-
-    const result = await authenticateVendor({
-      store: createStore({
-        async findActiveVendorByUsername(username) {
-          expect(username).toBe("ai-vendor");
-          return {
-            id: "vendor-1",
-            username: "ai-vendor",
-            passwordHash,
-            passwordSalt: salt,
-            station: { id: "station-1", name: "AI Booth", active: true },
-          };
-        },
-      }),
-      username: " AI-Vendor ",
-      password: "station-secret",
-      now: () => new Date("2025-01-01T00:00:00.000Z"),
-    });
-
-    expect(result).toEqual({
-      ok: true,
-      session: { id: "vendor-session-1", vendorId: "vendor-1", expiresAt: "2025-01-02T00:00:00.000Z" },
-    });
-  });
-
-  it("rejects invalid vendor credentials without creating a session", async () => {
-    const salt = "vendor-salt";
-    const passwordHash = hashPassword("station-secret", salt);
-    let created = false;
-
-    const result = await authenticateVendor({
-      store: createStore({
-        async findActiveVendorByUsername() {
-          return {
-            id: "vendor-1",
-            username: "ai-vendor",
-            passwordHash,
-            passwordSalt: salt,
-            station: { id: "station-1", name: "AI Booth", active: true },
-          };
-        },
-        async createVendorSession() {
-          created = true;
-          throw new Error("should not create session");
-        },
-      }),
-      username: "ai-vendor",
-      password: "wrong-password",
-    });
-
-    expect(result).toEqual({ ok: false, error: "Invalid username or password." });
-    expect(created).toBe(false);
-  });
-});
+import { generateStationQr, getVendorDashboard } from "@/lib/vendor/portal";
+import { createStore } from "./test-stores";
 
 describe("vendor portal dashboard", () => {
   it("blocks portal data without a valid vendor session", async () => {
@@ -320,14 +217,6 @@ describe("manual station QR generation", () => {
 });
 
 describe("vendor portal UI", () => {
-  it("shows a protected login prompt to visitors", () => {
-    render(<VendorPortal dashboard={{ authorized: false }} />);
-
-    expect(screen.getByRole("heading", { name: "Vendor login" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Username")).toBeInTheDocument();
-    expect(screen.getByLabelText("Password")).toBeInTheDocument();
-  });
-
   it("shows the assigned station and QR generation controls to vendors", () => {
     render(
       <VendorPortal

@@ -3,6 +3,7 @@ import React from "react";
 import {
   createStationAction,
   createVendorAction,
+  drawLuckyWinnerAction,
   editStationAction,
   editVendorAction,
   loginAdminAction,
@@ -10,7 +11,8 @@ import {
   setParticipationAction,
   updateDelegateNameAction,
 } from "@/app/admin/actions";
-import type { AdminDashboardResult, Station } from "@/lib/admin";
+import type { AdminDashboardResult } from "@/lib/admin/dashboard";
+import type { Station } from "@/lib/shared/station";
 
 function StationSelect({ stations, label, name, defaultValue }: { stations: Station[]; label: string; name: string; defaultValue?: string }) {
   return (
@@ -55,7 +57,7 @@ export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboard
     );
   }
 
-  const { participation, stations, vendorAccounts, participants } = dashboard;
+  const { participation, stations, vendorAccounts, participants, stationSummaries, scanAuditLogs, winnerHistory = [] } = dashboard;
   const nextOpenValue = participation.open ? "false" : "true";
   const buttonLabel = participation.open ? "Close participation" : "Open participation";
   const changedBy = participation.updatedByUsername ?? "unknown admin";
@@ -166,6 +168,66 @@ export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboard
                 </label>
                 <button type="submit">Save vendor</button>
               </form>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="health-card" aria-labelledby="lucky-draw-title">
+        <h2 id="lucky-draw-title">Lucky draw</h2>
+        <form action={drawLuckyWinnerAction} className="control-form">
+          <label>
+            Draw label
+            <input name="drawLabel" placeholder="Grand Prize" required />
+          </label>
+          <button type="submit">Draw winner</button>
+        </form>
+      </section>
+
+      <section className="health-card" aria-labelledby="winner-history-title">
+        <h2 id="winner-history-title">Winner history</h2>
+        {winnerHistory.length === 0 ? <p>No winners drawn yet.</p> : null}
+        <div className="item-list">
+          {winnerHistory.map((winner) => (
+            <article key={winner.id} className="list-item">
+              <p>{winner.drawLabel} — {winner.fullName} — {winner.registrationNumber} — {winner.wonAt}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="health-card" aria-labelledby="exports-title">
+        <h2 id="exports-title">Exports</h2>
+        <div className="item-list">
+          <a href="/admin/exports/participants">Export participants/progress</a>
+          <a href="/admin/exports/station-completions">Export station completions</a>
+          <a href="/admin/exports/survey-responses">Export survey responses</a>
+          <a href="/admin/exports/winner-history">Export winner history</a>
+          <a href="/admin/exports/scan-audit">Export scan audit logs</a>
+        </div>
+      </section>
+
+      <section className="health-card" aria-labelledby="station-summary-title">
+        <h2 id="station-summary-title">Station summary</h2>
+        {stationSummaries.length === 0 ? <p>No station completions yet.</p> : null}
+        <div className="item-list">
+          {stationSummaries.map((summary) => (
+            <article key={summary.stationId} className="list-item">
+              <p>{summary.stationName} — {summary.active ? "active" : "disabled"} — {summary.completions} completions</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="health-card" aria-labelledby="scan-audit-title">
+        <h2 id="scan-audit-title">Scan audit log</h2>
+        {scanAuditLogs.length === 0 ? <p>No scan attempts yet.</p> : null}
+        <div className="item-list">
+          {scanAuditLogs.map((entry) => (
+            <article key={entry.id} className="list-item">
+              <p>
+                {entry.delegateFullName ?? "Unknown delegate"} — {entry.stationName ?? "Unknown station"} — {entry.scannedAt} — token {entry.qrToken} — {entry.result} — {entry.consumed ? "consumed" : "not consumed"}
+              </p>
             </article>
           ))}
         </div>

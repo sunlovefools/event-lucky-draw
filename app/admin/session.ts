@@ -1,1 +1,1 @@
-export const ADMIN_SESSION_COOKIE = "admin_session";
+export { ADMIN_SESSION_COOKIE } from "@/lib/session-cookies";
