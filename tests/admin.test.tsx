@@ -10,8 +10,11 @@ import {
   editStation,
   editVendorAccount,
   getAdminDashboard,
+  getLuckyDrawPool,
   hashAdminPassword,
+  setDelegateDrawStatus,
   setParticipationState,
+  updateDelegateName,
   type AdminStore,
 } from "@/lib/admin";
 
@@ -72,6 +75,31 @@ function createStore(overrides: Partial<AdminStore> = {}): AdminStore {
         stationId: vendor.stationId,
         stationName: "Demo station",
         active: vendor.active,
+      };
+    },
+    async listParticipants() {
+      return [];
+    },
+    async updateDelegateName(delegateId, fullName) {
+      return {
+        id: delegateId,
+        fullName,
+        registrationNumber: "REG-001",
+        stampsCollected: 0,
+        totalActiveStations: 0,
+        surveySubmitted: false,
+        drawStatus: "not_eligible",
+      };
+    },
+    async updateDelegateDrawStatus(delegateId, drawStatus) {
+      return {
+        id: delegateId,
+        fullName: "Ada Lovelace",
+        registrationNumber: "REG-001",
+        stampsCollected: 0,
+        totalActiveStations: 0,
+        surveySubmitted: false,
+        drawStatus,
       };
     },
     ...overrides,
@@ -166,6 +194,7 @@ describe("protected admin dashboard", () => {
       },
       stations: [],
       vendorAccounts: [],
+      participants: [],
     });
   });
 });
@@ -422,6 +451,129 @@ describe("participation control", () => {
   });
 });
 
+describe("participant dashboard and eligibility overrides", () => {
+  it("includes participant progress, survey status, and draw status on the protected dashboard", async () => {
+    const result = await getAdminDashboard({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async listParticipants() {
+          return [
+            {
+              id: "delegate-1",
+              fullName: "Ada Lovelace",
+              registrationNumber: "REG-001",
+              stampsCollected: 2,
+              totalActiveStations: 3,
+              surveySubmitted: true,
+              drawStatus: "eligible",
+            },
+          ];
+        },
+      }),
+      sessionId: "session-1",
+    });
+
+    expect(result).toMatchObject({
+      authorized: true,
+      participants: [
+        {
+          id: "delegate-1",
+          fullName: "Ada Lovelace",
+          registrationNumber: "REG-001",
+          stampsCollected: 2,
+          totalActiveStations: 3,
+          surveySubmitted: true,
+          drawStatus: "eligible",
+        },
+      ],
+    });
+  });
+
+  it("lets an authenticated admin edit delegate names", async () => {
+    const updates: Array<{ delegateId: string; fullName: string }> = [];
+    const result = await updateDelegateName({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async updateDelegateName(delegateId, fullName) {
+          updates.push({ delegateId, fullName });
+          return {
+            id: delegateId,
+            fullName,
+            registrationNumber: "REG-001",
+            stampsCollected: 2,
+            totalActiveStations: 3,
+            surveySubmitted: true,
+            drawStatus: "eligible",
+          };
+        },
+      }),
+      sessionId: "session-1",
+      delegateId: "delegate-1",
+      fullName: " Ada L. Lovelace ",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      participant: {
+        id: "delegate-1",
+        fullName: "Ada L. Lovelace",
+        registrationNumber: "REG-001",
+        stampsCollected: 2,
+        totalActiveStations: 3,
+        surveySubmitted: true,
+        drawStatus: "eligible",
+      },
+    });
+    expect(updates).toEqual([{ delegateId: "delegate-1", fullName: "Ada L. Lovelace" }]);
+  });
+
+  it("lets an authenticated admin manually include or disqualify delegates", async () => {
+    const statuses: Array<{ delegateId: string; drawStatus: string }> = [];
+    const store = createStore({
+      async findValidSession() {
+        return { id: "session-1", adminId: "admin-1", username: "organizer" };
+      },
+      async updateDelegateDrawStatus(delegateId, drawStatus) {
+        statuses.push({ delegateId, drawStatus });
+        return {
+          id: delegateId,
+          fullName: "Ada Lovelace",
+          registrationNumber: "REG-001",
+          stampsCollected: 1,
+          totalActiveStations: 3,
+          surveySubmitted: false,
+          drawStatus,
+        };
+      },
+    });
+
+    const included = await setDelegateDrawStatus({ store, sessionId: "session-1", delegateId: "delegate-1", drawStatus: "manual_include" });
+    const removed = await setDelegateDrawStatus({ store, sessionId: "session-1", delegateId: "delegate-1", drawStatus: "disqualified" });
+
+    expect(included).toMatchObject({ ok: true, participant: { id: "delegate-1", drawStatus: "manual_include" } });
+    expect(removed).toMatchObject({ ok: true, participant: { id: "delegate-1", drawStatus: "disqualified" } });
+    expect(statuses).toEqual([
+      { delegateId: "delegate-1", drawStatus: "manual_include" },
+      { delegateId: "delegate-1", drawStatus: "disqualified" },
+    ]);
+  });
+
+  it("derives the lucky draw pool from delegate draw status", () => {
+    const participants = [
+      { id: "delegate-1", fullName: "Ada Lovelace", registrationNumber: "REG-001", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "eligible" as const },
+      { id: "delegate-2", fullName: "Grace Hopper", registrationNumber: "REG-002", stampsCollected: 1, totalActiveStations: 3, surveySubmitted: false, drawStatus: "manual_include" as const },
+      { id: "delegate-3", fullName: "Alan Turing", registrationNumber: "REG-003", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "disqualified" as const },
+      { id: "delegate-4", fullName: "Katherine Johnson", registrationNumber: "REG-004", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "winner" as const },
+    ];
+
+    expect(getLuckyDrawPool(participants).map((participant) => participant.id)).toEqual(["delegate-1", "delegate-2"]);
+  });
+});
+
 describe("admin dashboard UI", () => {
   it("shows a protected login prompt to visitors", () => {
     render(<AdminDashboard dashboard={{ authorized: false }} />);
@@ -444,6 +596,7 @@ describe("admin dashboard UI", () => {
           },
           stations: [],
           vendorAccounts: [],
+          participants: [],
         }}
       />,
     );
@@ -479,6 +632,7 @@ describe("admin dashboard UI", () => {
               active: true,
             },
           ],
+          participants: [],
         }}
       />,
     );
@@ -497,5 +651,41 @@ describe("admin dashboard UI", () => {
     expect(screen.getByRole("button", { name: "Create vendor" })).toBeInTheDocument();
     expect(screen.getByText("ai-vendor — AI Booth — active")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save vendor" })).toBeInTheDocument();
+  });
+
+  it("shows participant progress and eligibility override controls to admins", () => {
+    render(
+      <AdminDashboard
+        dashboard={{
+          authorized: true,
+          admin: { id: "admin-1", username: "organizer" },
+          participation: {
+            open: true,
+            updatedAt: "2025-01-01T00:10:00.000Z",
+            updatedByUsername: "organizer",
+          },
+          stations: [],
+          vendorAccounts: [],
+          participants: [
+            {
+              id: "delegate-1",
+              fullName: "Ada Lovelace",
+              registrationNumber: "REG-001",
+              stampsCollected: 2,
+              totalActiveStations: 3,
+              surveySubmitted: true,
+              drawStatus: "eligible",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Participants" })).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace — REG-001 — 2/3 stamps — survey submitted — eligible")).toBeInTheDocument();
+    expect(screen.getByLabelText("Full name for Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save delegate" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Manually include" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Disqualify" })).toBeInTheDocument();
   });
 });

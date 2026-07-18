@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] Participant table shows name, registration, stamps, survey, draw status
-- [ ] Admin can edit delegate names
-- [ ] Admin can manually include delegates
-- [ ] Admin can remove/disqualify delegates
-- [ ] Draw pool derives from delegate status
+- [x] Participant table shows name, registration, stamps, survey, draw status
+- [x] Admin can edit delegate names
+- [x] Admin can manually include delegates
+- [x] Admin can remove/disqualify delegates
+- [x] Draw pool derives from delegate status

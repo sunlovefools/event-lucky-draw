@@ -6,7 +6,9 @@ import {
   editStationAction,
   editVendorAction,
   loginAdminAction,
+  setDelegateDrawStatusAction,
   setParticipationAction,
+  updateDelegateNameAction,
 } from "@/app/admin/actions";
 import type { AdminDashboardResult, Station } from "@/lib/admin";
 
@@ -53,7 +55,7 @@ export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboard
     );
   }
 
-  const { participation, stations, vendorAccounts } = dashboard;
+  const { participation, stations, vendorAccounts, participants } = dashboard;
   const nextOpenValue = participation.open ? "false" : "true";
   const buttonLabel = participation.open ? "Close participation" : "Open participation";
   const changedBy = participation.updatedByUsername ?? "unknown admin";
@@ -163,6 +165,38 @@ export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboard
                   </select>
                 </label>
                 <button type="submit">Save vendor</button>
+              </form>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="health-card" aria-labelledby="participants-title">
+        <h2 id="participants-title">Participants</h2>
+        {participants.length === 0 ? <p>No participants yet.</p> : null}
+        <div className="item-list">
+          {participants.map((participant) => (
+            <article key={participant.id} className="list-item">
+              <p>
+                {participant.fullName} — {participant.registrationNumber} — {participant.stampsCollected}/{participant.totalActiveStations} stamps — {participant.surveySubmitted ? "survey submitted" : "survey not submitted"} — {participant.drawStatus}
+              </p>
+              <form action={updateDelegateNameAction} className="control-form">
+                <input type="hidden" name="delegateId" value={participant.id} />
+                <label>
+                  Full name for {participant.fullName}
+                  <input name="fullName" defaultValue={participant.fullName} required />
+                </label>
+                <button type="submit">Save delegate</button>
+              </form>
+              <form action={setDelegateDrawStatusAction} className="control-form">
+                <input type="hidden" name="delegateId" value={participant.id} />
+                <input type="hidden" name="drawStatus" value="manual_include" />
+                <button type="submit">Manually include</button>
+              </form>
+              <form action={setDelegateDrawStatusAction} className="control-form">
+                <input type="hidden" name="delegateId" value={participant.id} />
+                <input type="hidden" name="drawStatus" value="disqualified" />
+                <button type="submit">Disqualify</button>
               </form>
             </article>
           ))}

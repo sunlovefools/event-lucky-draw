@@ -9,8 +9,10 @@ import {
   createVendorAccount,
   editStation,
   editVendorAccount,
+  setDelegateDrawStatus,
   setParticipationState,
   SupabaseAdminStore,
+  updateDelegateName,
 } from "@/lib/admin";
 import { ADMIN_SESSION_COOKIE } from "@/app/admin/session";
 
@@ -121,6 +123,36 @@ export async function editVendorAction(formData: FormData) {
 
   if (!result.ok) {
     redirect(`/admin?error=${result.error === "Admin login required." ? "login-required" : "vendor-invalid"}`);
+  }
+
+  redirect("/admin");
+}
+
+export async function updateDelegateNameAction(formData: FormData) {
+  const result = await updateDelegateName({
+    store: new SupabaseAdminStore(),
+    sessionId: await currentAdminSessionId(),
+    delegateId: String(formData.get("delegateId") ?? ""),
+    fullName: String(formData.get("fullName") ?? ""),
+  });
+
+  if (!result.ok) {
+    redirect(`/admin?error=${result.error === "Admin login required." ? "login-required" : "delegate-invalid"}`);
+  }
+
+  redirect("/admin");
+}
+
+export async function setDelegateDrawStatusAction(formData: FormData) {
+  const result = await setDelegateDrawStatus({
+    store: new SupabaseAdminStore(),
+    sessionId: await currentAdminSessionId(),
+    delegateId: String(formData.get("delegateId") ?? ""),
+    drawStatus: String(formData.get("drawStatus") ?? "not_eligible"),
+  });
+
+  if (!result.ok) {
+    redirect(`/admin?error=${result.error === "Admin login required." ? "login-required" : "delegate-invalid"}`);
   }
 
   redirect("/admin");
