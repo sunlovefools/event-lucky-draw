@@ -1,0 +1,9 @@
+.pi
+.agents
+node_modules
+.next
+.env*.local
+.env
+coverage
+.vitest
+tsconfig.tsbuildinfo
