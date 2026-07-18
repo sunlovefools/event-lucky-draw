@@ -15,7 +15,10 @@ Hosted Next.js application scaffold for the event station quest lucky draw syste
 3. Fill in Supabase values in `.env.local`:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Apply Supabase migrations from `supabase/migrations` to the target project.
+4. Apply database migrations:
+   ```bash
+   npm run db:migrate
+   ```
 5. Seed an admin account:
    ```bash
    ADMIN_USERNAME=admin ADMIN_PASSWORD='use-a-real-password' npm run seed:admin
@@ -25,6 +28,29 @@ Hosted Next.js application scaffold for the event station quest lucky draw syste
    ```bash
    npm run dev
    ```
+
+## Database migrations
+
+Use the npm scripts as the standard database workflow instead of running ad-hoc SQL manually.
+
+- Create a migration:
+  ```bash
+  npm run db:new -- descriptive_migration_name
+  ```
+- Apply pending migrations to the linked Supabase project:
+  ```bash
+  npm run db:migrate
+  ```
+- Check local migration files against the linked project:
+  ```bash
+  npm run db:status
+  ```
+- Reset a local Supabase database from migrations:
+  ```bash
+  npm run db:reset
+  ```
+
+Migration files live in `supabase/migrations` and should be committed with the feature that needs them.
 
 ## Health path
 
