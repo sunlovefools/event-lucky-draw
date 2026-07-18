@@ -13,6 +13,14 @@ function errorMessage(error?: string) {
     return "Admin login required.";
   }
 
+  if (error === "station-invalid") {
+    return "Station name is required.";
+  }
+
+  if (error === "vendor-invalid") {
+    return "Vendor account needs a username, password, and exactly one station.";
+  }
+
   return undefined;
 }
 

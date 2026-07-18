@@ -5,6 +5,10 @@ import { render, screen } from "@testing-library/react";
 import { AdminDashboard } from "@/app/admin/admin-dashboard";
 import {
   authenticateAdmin,
+  createStation,
+  createVendorAccount,
+  editStation,
+  editVendorAccount,
   getAdminDashboard,
   hashAdminPassword,
   setParticipationState,
@@ -38,6 +42,36 @@ function createStore(overrides: Partial<AdminStore> = {}): AdminStore {
         open,
         updatedAt,
         updatedByUsername: adminId === "admin-1" ? "organizer" : null,
+      };
+    },
+    async listStations() {
+      return [];
+    },
+    async listVendorAccounts() {
+      return [];
+    },
+    async createStation(station) {
+      return { id: "station-1", name: station.name, active: station.active };
+    },
+    async updateStation(stationId, station) {
+      return { id: stationId, name: station.name, active: station.active };
+    },
+    async createVendorAccount(vendor) {
+      return {
+        id: "vendor-1",
+        username: vendor.username,
+        stationId: vendor.stationId,
+        stationName: "Demo station",
+        active: vendor.active,
+      };
+    },
+    async updateVendorAccount(vendorId, vendor) {
+      return {
+        id: vendorId,
+        username: vendor.username,
+        stationId: vendor.stationId,
+        stationName: "Demo station",
+        active: vendor.active,
       };
     },
     ...overrides,
@@ -130,7 +164,203 @@ describe("protected admin dashboard", () => {
         updatedAt: "2025-01-01T00:00:00.000Z",
         updatedByUsername: "organizer",
       },
+      stations: [],
+      vendorAccounts: [],
     });
+  });
+});
+
+describe("station and vendor management", () => {
+  it("includes stations and vendor account assignments on the protected dashboard", async () => {
+    const result = await getAdminDashboard({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async listStations() {
+          return [
+            { id: "station-1", name: "AI Booth", active: true },
+            { id: "station-2", name: "Cloud Booth", active: false },
+          ];
+        },
+        async listVendorAccounts() {
+          return [
+            {
+              id: "vendor-1",
+              username: "ai-vendor",
+              stationId: "station-1",
+              stationName: "AI Booth",
+              active: true,
+            },
+          ];
+        },
+      }),
+      sessionId: "session-1",
+    });
+
+    expect(result).toMatchObject({
+      authorized: true,
+      stations: [
+        { id: "station-1", name: "AI Booth", active: true },
+        { id: "station-2", name: "Cloud Booth", active: false },
+      ],
+      vendorAccounts: [
+        {
+          id: "vendor-1",
+          username: "ai-vendor",
+          stationId: "station-1",
+          stationName: "AI Booth",
+          active: true,
+        },
+      ],
+    });
+  });
+
+  it("lets an authenticated admin create and edit active or disabled stations", async () => {
+    const createdStations: Array<{ name: string; active: boolean }> = [];
+    const updatedStations: Array<{ stationId: string; name: string; active: boolean }> = [];
+    const store = createStore({
+      async findValidSession() {
+        return { id: "session-1", adminId: "admin-1", username: "organizer" };
+      },
+      async createStation(station) {
+        createdStations.push(station);
+        return { id: "station-1", ...station };
+      },
+      async updateStation(stationId, station) {
+        updatedStations.push({ stationId, ...station });
+        return { id: stationId, ...station };
+      },
+    });
+
+    const created = await createStation({ store, sessionId: "session-1", name: " AI Booth ", active: true });
+    const edited = await editStation({
+      store,
+      sessionId: "session-1",
+      stationId: "station-1",
+      name: "AI Experience Booth",
+      active: false,
+    });
+
+    expect(created).toEqual({ ok: true, station: { id: "station-1", name: "AI Booth", active: true } });
+    expect(edited).toEqual({
+      ok: true,
+      station: { id: "station-1", name: "AI Experience Booth", active: false },
+    });
+    expect(createdStations).toEqual([{ name: "AI Booth", active: true }]);
+    expect(updatedStations).toEqual([{ stationId: "station-1", name: "AI Experience Booth", active: false }]);
+  });
+
+  it("lets an authenticated admin create and edit vendor accounts assigned to exactly one station", async () => {
+    const salt = "vendor-salt";
+    const createdVendors: Array<{
+      username: string;
+      stationId: string;
+      passwordHash: string;
+      passwordSalt: string;
+      active: boolean;
+    }> = [];
+    const updatedVendors: Array<{ vendorId: string; username: string; stationId: string; active: boolean }> = [];
+    const store = createStore({
+      async findValidSession() {
+        return { id: "session-1", adminId: "admin-1", username: "organizer" };
+      },
+      async createVendorAccount(vendor) {
+        createdVendors.push(vendor);
+        return {
+          id: "vendor-1",
+          username: vendor.username,
+          stationId: vendor.stationId,
+          stationName: "AI Booth",
+          active: vendor.active,
+        };
+      },
+      async updateVendorAccount(vendorId, vendor) {
+        updatedVendors.push({ vendorId, username: vendor.username, stationId: vendor.stationId, active: vendor.active });
+        return {
+          id: vendorId,
+          username: vendor.username,
+          stationId: vendor.stationId,
+          stationName: "Cloud Booth",
+          active: vendor.active,
+        };
+      },
+    });
+
+    const created = await createVendorAccount({
+      store,
+      sessionId: "session-1",
+      username: " AI-Vendor ",
+      password: "station-secret",
+      stationId: "station-1",
+      active: true,
+      newSalt: () => salt,
+    });
+    const edited = await editVendorAccount({
+      store,
+      sessionId: "session-1",
+      vendorId: "vendor-1",
+      username: "cloud-vendor",
+      stationId: "station-2",
+      active: false,
+    });
+
+    expect(created).toEqual({
+      ok: true,
+      vendorAccount: {
+        id: "vendor-1",
+        username: "ai-vendor",
+        stationId: "station-1",
+        stationName: "AI Booth",
+        active: true,
+      },
+    });
+    expect(edited).toEqual({
+      ok: true,
+      vendorAccount: {
+        id: "vendor-1",
+        username: "cloud-vendor",
+        stationId: "station-2",
+        stationName: "Cloud Booth",
+        active: false,
+      },
+    });
+    expect(createdVendors).toEqual([
+      {
+        username: "ai-vendor",
+        stationId: "station-1",
+        passwordHash: hashAdminPassword("station-secret", salt),
+        passwordSalt: salt,
+        active: true,
+      },
+    ]);
+    expect(updatedVendors).toEqual([
+      { vendorId: "vendor-1", username: "cloud-vendor", stationId: "station-2", active: false },
+    ]);
+  });
+
+  it("rejects vendor accounts without one station assignment", async () => {
+    let created = false;
+
+    const result = await createVendorAccount({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async createVendorAccount() {
+          created = true;
+          throw new Error("should not create vendor");
+        },
+      }),
+      sessionId: "session-1",
+      username: "vendor",
+      password: "station-secret",
+      stationId: "",
+      active: true,
+    });
+
+    expect(result).toEqual({ ok: false, error: "Vendor account must be assigned to exactly one station." });
+    expect(created).toBe(false);
   });
 });
 
@@ -212,6 +442,8 @@ describe("admin dashboard UI", () => {
             updatedAt: "2025-01-01T00:10:00.000Z",
             updatedByUsername: "organizer",
           },
+          stations: [],
+          vendorAccounts: [],
         }}
       />,
     );
@@ -221,5 +453,49 @@ describe("admin dashboard UI", () => {
     expect(screen.getByText("Participation is closed")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open participation" })).toBeInTheDocument();
     expect(screen.getByText("Last changed by organizer at 2025-01-01T00:10:00.000Z")).toBeInTheDocument();
+  });
+
+  it("shows station and vendor management to admins", () => {
+    render(
+      <AdminDashboard
+        dashboard={{
+          authorized: true,
+          admin: { id: "admin-1", username: "organizer" },
+          participation: {
+            open: true,
+            updatedAt: "2025-01-01T00:10:00.000Z",
+            updatedByUsername: "organizer",
+          },
+          stations: [
+            { id: "station-1", name: "AI Booth", active: true },
+            { id: "station-2", name: "Cloud Booth", active: false },
+          ],
+          vendorAccounts: [
+            {
+              id: "vendor-1",
+              username: "ai-vendor",
+              stationId: "station-1",
+              stationName: "AI Booth",
+              active: true,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Stations" })).toBeInTheDocument();
+    expect(screen.getByLabelText("New station name")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create station" })).toBeInTheDocument();
+    expect(screen.getByText("AI Booth — active")).toBeInTheDocument();
+    expect(screen.getByText("Cloud Booth — disabled")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Save station" })).toHaveLength(2);
+
+    expect(screen.getByRole("heading", { name: "Vendor accounts" })).toBeInTheDocument();
+    expect(screen.getByLabelText("New vendor username")).toBeInTheDocument();
+    expect(screen.getByLabelText("New vendor password")).toBeInTheDocument();
+    expect(screen.getByLabelText("New vendor station")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create vendor" })).toBeInTheDocument();
+    expect(screen.getByText("ai-vendor — AI Booth — active")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save vendor" })).toBeInTheDocument();
   });
 });

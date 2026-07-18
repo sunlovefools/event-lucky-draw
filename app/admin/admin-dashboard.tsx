@@ -1,7 +1,32 @@
 import React from "react";
 
-import { loginAdminAction, setParticipationAction } from "@/app/admin/actions";
-import type { AdminDashboardResult } from "@/lib/admin";
+import {
+  createStationAction,
+  createVendorAction,
+  editStationAction,
+  editVendorAction,
+  loginAdminAction,
+  setParticipationAction,
+} from "@/app/admin/actions";
+import type { AdminDashboardResult, Station } from "@/lib/admin";
+
+function StationSelect({ stations, label, name, defaultValue }: { stations: Station[]; label: string; name: string; defaultValue?: string }) {
+  return (
+    <label>
+      {label}
+      <select name={name} defaultValue={defaultValue ?? ""} required>
+        <option value="" disabled>
+          Choose a station
+        </option>
+        {stations.map((station) => (
+          <option key={station.id} value={station.id}>
+            {station.name} ({station.active ? "active" : "disabled"})
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboardResult; error?: string }) {
   if (!dashboard.authorized) {
@@ -28,7 +53,7 @@ export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboard
     );
   }
 
-  const { participation } = dashboard;
+  const { participation, stations, vendorAccounts } = dashboard;
   const nextOpenValue = participation.open ? "false" : "true";
   const buttonLabel = participation.open ? "Close participation" : "Open participation";
   const changedBy = participation.updatedByUsername ?? "unknown admin";
@@ -39,6 +64,7 @@ export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboard
         <p className="eyebrow">Admin</p>
         <h1 id="admin-dashboard-title">Admin dashboard</h1>
         <p className="lead">Signed in as {dashboard.admin.username}</p>
+        {error ? <p role="alert" className="health-error">{error}</p> : null}
       </section>
 
       <section className="health-card" aria-labelledby="participation-title">
@@ -51,6 +77,96 @@ export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboard
           <input type="hidden" name="open" value={nextOpenValue} />
           <button type="submit">{buttonLabel}</button>
         </form>
+      </section>
+
+      <section className="health-card" aria-labelledby="stations-title">
+        <h2 id="stations-title">Stations</h2>
+        <form action={createStationAction} className="control-form">
+          <label>
+            New station name
+            <input name="name" required />
+          </label>
+          <label>
+            New station status
+            <select name="active" defaultValue="true">
+              <option value="true">Active</option>
+              <option value="false">Disabled</option>
+            </select>
+          </label>
+          <button type="submit">Create station</button>
+        </form>
+
+        {stations.length === 0 ? <p>No stations yet.</p> : null}
+        <div className="item-list">
+          {stations.map((station) => (
+            <article key={station.id} className="list-item">
+              <p>{station.name} — {station.active ? "active" : "disabled"}</p>
+              <form action={editStationAction} className="control-form">
+                <input type="hidden" name="stationId" value={station.id} />
+                <label>
+                  Station name for {station.name}
+                  <input name="name" defaultValue={station.name} required />
+                </label>
+                <label>
+                  Station status for {station.name}
+                  <select name="active" defaultValue={station.active ? "true" : "false"}>
+                    <option value="true">Active</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+                <button type="submit">Save station</button>
+              </form>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="health-card" aria-labelledby="vendors-title">
+        <h2 id="vendors-title">Vendor accounts</h2>
+        <form action={createVendorAction} className="control-form">
+          <label>
+            New vendor username
+            <input name="username" autoComplete="username" required />
+          </label>
+          <label>
+            New vendor password
+            <input name="password" type="password" autoComplete="new-password" required />
+          </label>
+          <StationSelect stations={stations} label="New vendor station" name="stationId" />
+          <label>
+            New vendor status
+            <select name="active" defaultValue="true">
+              <option value="true">Active</option>
+              <option value="false">Disabled</option>
+            </select>
+          </label>
+          <button type="submit">Create vendor</button>
+        </form>
+
+        {vendorAccounts.length === 0 ? <p>No vendor accounts yet.</p> : null}
+        <div className="item-list">
+          {vendorAccounts.map((vendor) => (
+            <article key={vendor.id} className="list-item">
+              <p>{vendor.username} — {vendor.stationName} — {vendor.active ? "active" : "disabled"}</p>
+              <form action={editVendorAction} className="control-form">
+                <input type="hidden" name="vendorId" value={vendor.id} />
+                <label>
+                  Vendor username for {vendor.username}
+                  <input name="username" defaultValue={vendor.username} autoComplete="username" required />
+                </label>
+                <StationSelect stations={stations} label={`Vendor station for ${vendor.username}`} name="stationId" defaultValue={vendor.stationId} />
+                <label>
+                  Vendor status for {vendor.username}
+                  <select name="active" defaultValue={vendor.active ? "true" : "false"}>
+                    <option value="true">Active</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+                <button type="submit">Save vendor</button>
+              </form>
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   );

@@ -27,22 +27,114 @@ export type ParticipationState = {
   updatedByUsername: string | null;
 };
 
+export type Station = {
+  id: string;
+  name: string;
+  active: boolean;
+};
+
+export type VendorAccount = {
+  id: string;
+  username: string;
+  stationId: string;
+  stationName: string;
+  active: boolean;
+};
+
+type StationInput = {
+  name: string;
+  active: boolean;
+};
+
+type VendorAccountInput = {
+  username: string;
+  stationId: string;
+  passwordHash: string;
+  passwordSalt: string;
+  active: boolean;
+};
+
+type VendorAccountUpdate = {
+  username: string;
+  stationId: string;
+  active: boolean;
+};
+
 export type AdminStore = {
   findActiveAdminByUsername(username: string): Promise<AdminAccount | null>;
   createAdminSession(adminId: string, expiresAt: string): Promise<AdminSession>;
   findValidSession(sessionId: string, nowIso: string): Promise<ValidAdminSession | null>;
   readParticipationState(): Promise<ParticipationState>;
   updateParticipationState(open: boolean, adminId: string, updatedAt: string): Promise<ParticipationState>;
+  listStations(): Promise<Station[]>;
+  listVendorAccounts(): Promise<VendorAccount[]>;
+  createStation(station: StationInput): Promise<Station>;
+  updateStation(stationId: string, station: StationInput): Promise<Station>;
+  createVendorAccount(vendor: VendorAccountInput): Promise<VendorAccount>;
+  updateVendorAccount(vendorId: string, vendor: VendorAccountUpdate): Promise<VendorAccount>;
 };
 
 export type AdminDashboardResult =
   | { authorized: false }
-  | { authorized: true; admin: { id: string; username: string }; participation: ParticipationState };
+  | {
+      authorized: true;
+      admin: { id: string; username: string };
+      participation: ParticipationState;
+      stations: Station[];
+      vendorAccounts: VendorAccount[];
+    };
 
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
 export function hashAdminPassword(password: string, salt: string) {
   return createHash("sha256").update(`${salt}:${password}`).digest("hex");
+}
+
+async function requireAdminSession({
+  store,
+  sessionId,
+  nowIso,
+}: {
+  store: AdminStore;
+  sessionId?: string | null;
+  nowIso: string;
+}): Promise<ValidAdminSession | null> {
+  if (!sessionId) {
+    return null;
+  }
+
+  return store.findValidSession(sessionId, nowIso);
+}
+
+function normalizeUsername(username: string) {
+  return username.trim().toLowerCase();
+}
+
+function normalizeStationId(stationId: string) {
+  return stationId.trim();
+}
+
+function validateStationName(name: string) {
+  const normalizedName = name.trim();
+  if (!normalizedName) {
+    return { ok: false as const, error: "Station name is required." };
+  }
+
+  return { ok: true as const, name: normalizedName };
+}
+
+function validateVendorFields(username: string, stationId: string) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) {
+    return { ok: false as const, error: "Vendor username is required." };
+  }
+
+  const normalizedStationId = normalizeStationId(stationId);
+  if (!normalizedStationId) {
+    return { ok: false as const, error: "Vendor account must be assigned to exactly one station." };
+  }
+
+  return { ok: true as const, username: normalizedUsername, stationId: normalizedStationId };
 }
 
 export async function authenticateAdmin({
@@ -56,7 +148,7 @@ export async function authenticateAdmin({
   password: string;
   now?: () => Date;
 }): Promise<{ ok: true; session: AdminSession } | { ok: false; error: string }> {
-  const normalizedUsername = username.trim().toLowerCase();
+  const normalizedUsername = normalizeUsername(username);
 
   if (!normalizedUsername || !password) {
     return { ok: false, error: "Invalid username or password." };
@@ -85,21 +177,23 @@ export async function getAdminDashboard({
   sessionId?: string | null;
   now?: () => Date;
 }): Promise<AdminDashboardResult> {
-  if (!sessionId) {
-    return { authorized: false };
-  }
-
-  const session = await store.findValidSession(sessionId, now().toISOString());
+  const session = await requireAdminSession({ store, sessionId, nowIso: now().toISOString() });
   if (!session) {
     return { authorized: false };
   }
 
-  const participation = await store.readParticipationState();
+  const [participation, stations, vendorAccounts] = await Promise.all([
+    store.readParticipationState(),
+    store.listStations(),
+    store.listVendorAccounts(),
+  ]);
 
   return {
     authorized: true,
     admin: { id: session.adminId, username: session.username },
     participation,
+    stations,
+    vendorAccounts,
   };
 }
 
@@ -114,12 +208,8 @@ export async function setParticipationState({
   open: boolean;
   now?: () => Date;
 }): Promise<{ ok: true; participation: ParticipationState } | { ok: false; error: string }> {
-  if (!sessionId) {
-    return { ok: false, error: "Admin login required." };
-  }
-
   const updatedAt = now().toISOString();
-  const session = await store.findValidSession(sessionId, updatedAt);
+  const session = await requireAdminSession({ store, sessionId, nowIso: updatedAt });
   if (!session) {
     return { ok: false, error: "Admin login required." };
   }
@@ -127,6 +217,156 @@ export async function setParticipationState({
   return {
     ok: true,
     participation: await store.updateParticipationState(open, session.adminId, updatedAt),
+  };
+}
+
+export async function createStation({
+  store,
+  sessionId,
+  name,
+  active,
+  now = () => new Date(),
+}: {
+  store: AdminStore;
+  sessionId?: string | null;
+  name: string;
+  active: boolean;
+  now?: () => Date;
+}): Promise<{ ok: true; station: Station } | { ok: false; error: string }> {
+  const session = await requireAdminSession({ store, sessionId, nowIso: now().toISOString() });
+  if (!session) {
+    return { ok: false, error: "Admin login required." };
+  }
+
+  const validName = validateStationName(name);
+  if (!validName.ok) {
+    return { ok: false, error: validName.error };
+  }
+
+  return { ok: true, station: await store.createStation({ name: validName.name, active }) };
+}
+
+export async function editStation({
+  store,
+  sessionId,
+  stationId,
+  name,
+  active,
+  now = () => new Date(),
+}: {
+  store: AdminStore;
+  sessionId?: string | null;
+  stationId: string;
+  name: string;
+  active: boolean;
+  now?: () => Date;
+}): Promise<{ ok: true; station: Station } | { ok: false; error: string }> {
+  const session = await requireAdminSession({ store, sessionId, nowIso: now().toISOString() });
+  if (!session) {
+    return { ok: false, error: "Admin login required." };
+  }
+
+  const normalizedStationId = normalizeStationId(stationId);
+  if (!normalizedStationId) {
+    return { ok: false, error: "Station is required." };
+  }
+
+  const validName = validateStationName(name);
+  if (!validName.ok) {
+    return { ok: false, error: validName.error };
+  }
+
+  return {
+    ok: true,
+    station: await store.updateStation(normalizedStationId, { name: validName.name, active }),
+  };
+}
+
+export async function createVendorAccount({
+  store,
+  sessionId,
+  username,
+  password,
+  stationId,
+  active,
+  now = () => new Date(),
+  newSalt = randomUUID,
+}: {
+  store: AdminStore;
+  sessionId?: string | null;
+  username: string;
+  password: string;
+  stationId: string;
+  active: boolean;
+  now?: () => Date;
+  newSalt?: () => string;
+}): Promise<{ ok: true; vendorAccount: VendorAccount } | { ok: false; error: string }> {
+  const session = await requireAdminSession({ store, sessionId, nowIso: now().toISOString() });
+  if (!session) {
+    return { ok: false, error: "Admin login required." };
+  }
+
+  const validFields = validateVendorFields(username, stationId);
+  if (!validFields.ok) {
+    return { ok: false, error: validFields.error };
+  }
+
+  if (!password) {
+    return { ok: false, error: "Vendor password is required." };
+  }
+
+  const passwordSalt = newSalt();
+  return {
+    ok: true,
+    vendorAccount: await store.createVendorAccount({
+      username: validFields.username,
+      stationId: validFields.stationId,
+      passwordHash: hashAdminPassword(password, passwordSalt),
+      passwordSalt,
+      active,
+    }),
+  };
+}
+
+export async function editVendorAccount({
+  store,
+  sessionId,
+  vendorId,
+  username,
+  stationId,
+  active,
+  now = () => new Date(),
+}: {
+  store: AdminStore;
+  sessionId?: string | null;
+  vendorId: string;
+  username: string;
+  stationId: string;
+  active: boolean;
+  now?: () => Date;
+}): Promise<{ ok: true; vendorAccount: VendorAccount } | { ok: false; error: string }> {
+  const session = await requireAdminSession({ store, sessionId, nowIso: now().toISOString() });
+  if (!session) {
+    return { ok: false, error: "Admin login required." };
+  }
+
+  const normalizedVendorId = vendorId.trim();
+  if (!normalizedVendorId) {
+    return { ok: false, error: "Vendor account is required." };
+  }
+
+  const validFields = validateVendorFields(username, stationId);
+  if (!validFields.ok) {
+    return { ok: false, error: validFields.error };
+  }
+
+  return {
+    ok: true,
+    vendorAccount: await store.updateVendorAccount(normalizedVendorId, {
+      username: validFields.username,
+      stationId: validFields.stationId,
+      active,
+    }),
   };
 }
 
@@ -150,6 +390,35 @@ type EventSettingsRow = {
   updated_at: string;
   admin_accounts?: { username: string } | { username: string }[] | null;
 };
+
+type StationRow = {
+  id: string;
+  name: string;
+  active: boolean;
+};
+
+type VendorAccountRow = {
+  id: string;
+  username: string;
+  station_id: string;
+  active: boolean;
+  stations?: { name: string } | { name: string }[] | null;
+};
+
+function stationFromRow(row: StationRow): Station {
+  return { id: row.id, name: row.name, active: row.active };
+}
+
+function vendorAccountFromRow(row: VendorAccountRow): VendorAccount {
+  const station = Array.isArray(row.stations) ? row.stations[0] : row.stations;
+  return {
+    id: row.id,
+    username: row.username,
+    stationId: row.station_id,
+    stationName: station?.name ?? "Unassigned station",
+    active: row.active,
+  };
+}
 
 export class SupabaseAdminStore implements AdminStore {
   constructor(private readonly supabase: SupabaseClientLike = createSupabaseBrowserClient()) {}
@@ -248,5 +517,92 @@ export class SupabaseAdminStore implements AdminStore {
       updatedAt: data.updated_at,
       updatedByUsername: adminAccount?.username ?? null,
     };
+  }
+
+  async listStations(): Promise<Station[]> {
+    const { data, error } = await this.supabase.from("stations").select("id, name, active").order("name");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map(stationFromRow);
+  }
+
+  async listVendorAccounts(): Promise<VendorAccount[]> {
+    const { data, error } = await this.supabase
+      .from("vendor_accounts")
+      .select("id, username, station_id, active, stations(name)")
+      .order("username");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map(vendorAccountFromRow);
+  }
+
+  async createStation(station: StationInput): Promise<Station> {
+    const { data, error } = await this.supabase
+      .from("stations")
+      .insert({ name: station.name, active: station.active })
+      .select("id, name, active")
+      .single<StationRow>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return stationFromRow(data);
+  }
+
+  async updateStation(stationId: string, station: StationInput): Promise<Station> {
+    const { data, error } = await this.supabase
+      .from("stations")
+      .update({ name: station.name, active: station.active })
+      .eq("id", stationId)
+      .select("id, name, active")
+      .single<StationRow>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return stationFromRow(data);
+  }
+
+  async createVendorAccount(vendor: VendorAccountInput): Promise<VendorAccount> {
+    const { data, error } = await this.supabase
+      .from("vendor_accounts")
+      .insert({
+        username: vendor.username,
+        station_id: vendor.stationId,
+        password_hash: vendor.passwordHash,
+        password_salt: vendor.passwordSalt,
+        active: vendor.active,
+      })
+      .select("id, username, station_id, active, stations(name)")
+      .single<VendorAccountRow>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return vendorAccountFromRow(data);
+  }
+
+  async updateVendorAccount(vendorId: string, vendor: VendorAccountUpdate): Promise<VendorAccount> {
+    const { data, error } = await this.supabase
+      .from("vendor_accounts")
+      .update({ username: vendor.username, station_id: vendor.stationId, active: vendor.active })
+      .eq("id", vendorId)
+      .select("id, username, station_id, active, stations(name)")
+      .single<VendorAccountRow>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return vendorAccountFromRow(data);
   }
 }

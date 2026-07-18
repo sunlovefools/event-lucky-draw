@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Stations can be created and edited
-- [ ] Stations can be activated/disabled
-- [ ] Vendor accounts can be created and edited
-- [ ] Each vendor is assigned to exactly one station
+- [x] Stations can be created and edited
+- [x] Stations can be activated/disabled
+- [x] Vendor accounts can be created and edited
+- [x] Each vendor is assigned to exactly one station

@@ -3,8 +3,21 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { authenticateAdmin, setParticipationState, SupabaseAdminStore } from "@/lib/admin";
+import {
+  authenticateAdmin,
+  createStation,
+  createVendorAccount,
+  editStation,
+  editVendorAccount,
+  setParticipationState,
+  SupabaseAdminStore,
+} from "@/lib/admin";
 import { ADMIN_SESSION_COOKIE } from "@/app/admin/session";
+
+async function currentAdminSessionId() {
+  const cookieStore = await cookies();
+  return cookieStore.get(ADMIN_SESSION_COOKIE)?.value;
+}
 
 export async function loginAdminAction(formData: FormData) {
   const username = String(formData.get("username") ?? "");
@@ -33,18 +46,81 @@ export async function loginAdminAction(formData: FormData) {
 }
 
 export async function setParticipationAction(formData: FormData) {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(ADMIN_SESSION_COOKIE)?.value;
   const open = formData.get("open") === "true";
 
   const result = await setParticipationState({
     store: new SupabaseAdminStore(),
-    sessionId,
+    sessionId: await currentAdminSessionId(),
     open,
   });
 
   if (!result.ok) {
     redirect("/admin?error=login-required");
+  }
+
+  redirect("/admin");
+}
+
+export async function createStationAction(formData: FormData) {
+  const result = await createStation({
+    store: new SupabaseAdminStore(),
+    sessionId: await currentAdminSessionId(),
+    name: String(formData.get("name") ?? ""),
+    active: formData.get("active") === "true",
+  });
+
+  if (!result.ok) {
+    redirect(`/admin?error=${result.error === "Admin login required." ? "login-required" : "station-invalid"}`);
+  }
+
+  redirect("/admin");
+}
+
+export async function editStationAction(formData: FormData) {
+  const result = await editStation({
+    store: new SupabaseAdminStore(),
+    sessionId: await currentAdminSessionId(),
+    stationId: String(formData.get("stationId") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    active: formData.get("active") === "true",
+  });
+
+  if (!result.ok) {
+    redirect(`/admin?error=${result.error === "Admin login required." ? "login-required" : "station-invalid"}`);
+  }
+
+  redirect("/admin");
+}
+
+export async function createVendorAction(formData: FormData) {
+  const result = await createVendorAccount({
+    store: new SupabaseAdminStore(),
+    sessionId: await currentAdminSessionId(),
+    username: String(formData.get("username") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    stationId: String(formData.get("stationId") ?? ""),
+    active: formData.get("active") === "true",
+  });
+
+  if (!result.ok) {
+    redirect(`/admin?error=${result.error === "Admin login required." ? "login-required" : "vendor-invalid"}`);
+  }
+
+  redirect("/admin");
+}
+
+export async function editVendorAction(formData: FormData) {
+  const result = await editVendorAccount({
+    store: new SupabaseAdminStore(),
+    sessionId: await currentAdminSessionId(),
+    vendorId: String(formData.get("vendorId") ?? ""),
+    username: String(formData.get("username") ?? ""),
+    stationId: String(formData.get("stationId") ?? ""),
+    active: formData.get("active") === "true",
+  });
+
+  if (!result.ok) {
+    redirect(`/admin?error=${result.error === "Admin login required." ? "login-required" : "vendor-invalid"}`);
   }
 
   redirect("/admin");
