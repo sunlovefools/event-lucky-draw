@@ -33,6 +33,9 @@ function createStore(overrides: Partial<DelegateStore> = {}): DelegateStore {
     async listDelegateStampStationIds() {
       return [];
     },
+    async readFinalSurveyStatus() {
+      return { submitted: false, eligible: false, eligibleAt: null };
+    },
     ...overrides,
   };
 
@@ -117,6 +120,7 @@ describe("delegate registration and resume", () => {
       identified: true,
       delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
       progress: { stations: [], completedCount: 0, totalRequired: 0, remainingCount: 0, readyForFinalSurvey: true },
+      finalSurvey: { available: true, submitted: false, eligible: false, eligibleAt: null },
     });
   });
 
@@ -205,7 +209,42 @@ describe("delegate station progress", () => {
         remainingCount: 1,
         readyForFinalSurvey: false,
       },
+      finalSurvey: { available: false, submitted: false, eligible: false, eligibleAt: null },
     });
+  });
+
+  it("makes the final survey available only after all active stations are complete", async () => {
+    const incomplete = await getDelegateHome({
+      store: createStore({
+        async findValidDelegateSession() {
+          return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
+        },
+        async listActiveStations() {
+          return [{ id: "station-1", name: "AI Booth" }, { id: "station-2", name: "Cloud Booth" }];
+        },
+        async listDelegateStampStationIds() {
+          return ["station-1"];
+        },
+      }),
+      sessionId: "delegate-session-1",
+    });
+    const complete = await getDelegateHome({
+      store: createStore({
+        async findValidDelegateSession() {
+          return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
+        },
+        async listActiveStations() {
+          return [{ id: "station-1", name: "AI Booth" }];
+        },
+        async listDelegateStampStationIds() {
+          return ["station-1"];
+        },
+      }),
+      sessionId: "delegate-session-1",
+    });
+
+    expect(incomplete).toMatchObject({ identified: true, finalSurvey: { available: false, submitted: false, eligible: false } });
+    expect(complete).toMatchObject({ identified: true, finalSurvey: { available: true, submitted: false, eligible: false } });
   });
 
   it("does not count disabled stations as required progress", async () => {
@@ -233,6 +272,7 @@ describe("delegate station progress", () => {
         remainingCount: 0,
         readyForFinalSurvey: true,
       },
+      finalSurvey: { available: true, submitted: false, eligible: false, eligibleAt: null },
     });
   });
 });
@@ -276,6 +316,7 @@ describe("delegate home UI", () => {
           remainingCount: 1,
           readyForFinalSurvey: false,
         },
+        finalSurvey: { available: false, submitted: false, eligible: false, eligibleAt: null },
       }),
     }));
 
@@ -286,5 +327,44 @@ describe("delegate home UI", () => {
     expect(screen.getByText("1 stamp remaining"));
     expect(screen.getByText("AI Booth — completed")).toBeInTheDocument();
     expect(screen.getByText("Cloud Booth — not completed")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Final survey" })).not.toBeInTheDocument();
+  });
+
+  it("shows the final survey after all active stations are complete", async () => {
+    render(await Home({
+      healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:00:00.000Z" }),
+      delegateHomePromise: Promise.resolve({
+        identified: true,
+        delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+        progress: {
+          stations: [{ id: "station-1", name: "AI Booth", completed: true }],
+          completedCount: 1,
+          totalRequired: 1,
+          remainingCount: 0,
+          readyForFinalSurvey: true,
+        },
+        finalSurvey: { available: true, submitted: false, eligible: false, eligibleAt: null },
+      }),
+    }));
+
+    expect(screen.getByRole("heading", { name: "Final survey" })).toBeInTheDocument();
+    expect(screen.getByLabelText("How was the event?"));
+    expect(screen.getByLabelText("Favorite station"));
+    expect(screen.getByRole("button", { name: "Submit final survey" })).toBeInTheDocument();
+  });
+
+  it("shows eligible confirmation instead of the survey after submission", async () => {
+    render(await Home({
+      healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:00:00.000Z" }),
+      delegateHomePromise: Promise.resolve({
+        identified: true,
+        delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+        progress: { stations: [], completedCount: 0, totalRequired: 0, remainingCount: 0, readyForFinalSurvey: true },
+        finalSurvey: { available: false, submitted: true, eligible: true, eligibleAt: "2025-01-01T00:00:00.000Z" },
+      }),
+    }));
+
+    expect(screen.getByRole("heading", { name: "You are entered" })).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace is entered into the lucky draw."));
   });
 });

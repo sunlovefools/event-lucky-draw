@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] Survey appears only after all active stations complete
-- [ ] Survey can be submitted once only
-- [ ] Submission marks delegate eligible
-- [ ] Eligible confirmation page is shown
-- [ ] Survey submission is blocked when participation is closed
+- [x] Survey appears only after all active stations complete
+- [x] Survey can be submitted once only
+- [x] Submission marks delegate eligible
+- [x] Eligible confirmation page is shown
+- [x] Survey submission is blocked when participation is closed

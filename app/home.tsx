@@ -1,6 +1,7 @@
 import React from "react";
 
 import { identifyDelegateAction } from "@/app/delegate/actions";
+import { submitFinalSurveyAction } from "@/app/final-survey/actions";
 import type { DelegateHomeResult } from "@/lib/delegate";
 import { getHealthStatus, type HealthStatus } from "@/lib/health";
 
@@ -46,6 +47,38 @@ export async function Home({
                 ))}
               </ul>
             </section>
+            {delegateHome.finalSurvey.eligible ? (
+              <section aria-labelledby="eligible-title">
+                <h3 id="eligible-title">You are entered</h3>
+                <p>{delegateHome.delegate.fullName} is entered into the lucky draw.</p>
+                <p>Registration number: {delegateHome.delegate.registrationNumber}</p>
+              </section>
+            ) : null}
+            {delegateHome.finalSurvey.available ? (
+              <section aria-labelledby="final-survey-title">
+                <h3 id="final-survey-title">Final survey</h3>
+                <form action={submitFinalSurveyAction} className="control-form">
+                  <label>
+                    How was the event?
+                    <select name="satisfaction" required>
+                      <option value="" disabled>Choose an option</option>
+                      <option value="great">Great</option>
+                      <option value="okay">Okay</option>
+                      <option value="needs-improvement">Needs improvement</option>
+                    </select>
+                  </label>
+                  <label>
+                    Favorite station
+                    <input name="favoriteStation" required />
+                  </label>
+                  <label>
+                    Feedback
+                    <input name="feedback" />
+                  </label>
+                  <button type="submit">Submit final survey</button>
+                </form>
+              </section>
+            ) : null}
           </>
         ) : (
           <>

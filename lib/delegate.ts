@@ -38,6 +38,16 @@ export type DelegateProgress = {
   readyForFinalSurvey: boolean;
 };
 
+export type FinalSurveyStatus = {
+  submitted: boolean;
+  eligible: boolean;
+  eligibleAt: string | null;
+};
+
+export type DelegateFinalSurvey = FinalSurveyStatus & {
+  available: boolean;
+};
+
 export type DelegateStore = {
   findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null>;
   createDelegate(delegate: { registrationNumber: string; fullName: string }): Promise<Delegate>;
@@ -46,11 +56,12 @@ export type DelegateStore = {
   readParticipationOpen(): Promise<boolean>;
   listActiveStations(): Promise<ActiveStation[]>;
   listDelegateStampStationIds(delegateId: string): Promise<string[]>;
+  readFinalSurveyStatus(delegateId: string): Promise<FinalSurveyStatus>;
 };
 
 export type DelegateHomeResult =
   | { identified: false }
-  | { identified: true; delegate: Delegate; progress: DelegateProgress };
+  | { identified: true; delegate: Delegate; progress: DelegateProgress; finalSurvey: DelegateFinalSurvey };
 
 const DELEGATE_SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -183,9 +194,10 @@ export async function getDelegateHome({
     return { identified: false };
   }
 
-  const [activeStations, stampedStationIds] = await Promise.all([
+  const [activeStations, stampedStationIds, finalSurveyStatus] = await Promise.all([
     store.listActiveStations(),
     store.listDelegateStampStationIds(session.delegate.id),
+    store.readFinalSurveyStatus(session.delegate.id),
   ]);
   const stampedStationIdSet = new Set(stampedStationIds);
   const stations = activeStations.map((station) => ({
@@ -195,6 +207,7 @@ export async function getDelegateHome({
   const completedCount = stations.filter((station) => station.completed).length;
   const totalRequired = stations.length;
   const remainingCount = totalRequired - completedCount;
+  const readyForFinalSurvey = remainingCount === 0;
 
   return {
     identified: true,
@@ -204,7 +217,13 @@ export async function getDelegateHome({
       completedCount,
       totalRequired,
       remainingCount,
-      readyForFinalSurvey: remainingCount === 0,
+      readyForFinalSurvey,
+    },
+    finalSurvey: {
+      available: readyForFinalSurvey && !finalSurveyStatus.submitted,
+      submitted: finalSurveyStatus.submitted,
+      eligible: finalSurveyStatus.eligible,
+      eligibleAt: finalSurveyStatus.eligibleAt,
     },
   };
 }
@@ -215,6 +234,8 @@ type DelegateRow = {
   id: string;
   registration_number: string;
   full_name: string;
+  eligible_at?: string | null;
+  draw_status?: string | null;
 };
 
 type DelegateSessionRow = {
@@ -235,6 +256,10 @@ type ActiveStationRow = {
 
 type DelegateStampRow = {
   station_id: string;
+};
+
+type FinalSurveyResponseRow = {
+  id: string;
 };
 
 function delegateFromRow(row: DelegateRow): Delegate {
@@ -350,5 +375,34 @@ export class SupabaseDelegateStore implements DelegateStore {
     }
 
     return (data ?? []).map((stamp: DelegateStampRow) => stamp.station_id);
+  }
+
+  async readFinalSurveyStatus(delegateId: string): Promise<FinalSurveyStatus> {
+    const [delegateResult, surveyResult] = await Promise.all([
+      this.supabase
+        .from("delegates")
+        .select("id, registration_number, full_name, eligible_at, draw_status")
+        .eq("id", delegateId)
+        .single<DelegateRow>(),
+      this.supabase
+        .from("final_survey_responses")
+        .select("id")
+        .eq("delegate_id", delegateId)
+        .maybeSingle<FinalSurveyResponseRow>(),
+    ]);
+
+    if (delegateResult.error) {
+      throw new Error(delegateResult.error.message);
+    }
+
+    if (surveyResult.error) {
+      throw new Error(surveyResult.error.message);
+    }
+
+    return {
+      submitted: Boolean(surveyResult.data),
+      eligible: delegateResult.data.draw_status === "eligible" || Boolean(delegateResult.data.eligible_at),
+      eligibleAt: delegateResult.data.eligible_at ?? null,
+    };
   }
 }

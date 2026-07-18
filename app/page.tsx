@@ -14,6 +14,10 @@ function errorMessage(error?: string) {
     return "Enter a registration number and full name to register.";
   }
 
+  if (error === "survey-invalid") {
+    return "Final survey could not be submitted.";
+  }
+
   return undefined;
 }
 
