@@ -31,6 +31,8 @@ export type ValidVendorSession = {
   };
 };
 
+export type StationQrStatus = "active" | "consumed" | "expired" | "invalidated";
+
 export type StationQr = {
   id: string;
   token: string;
@@ -39,6 +41,16 @@ export type StationQr = {
   expiresAt: string;
   invalidatedAt: string | null;
   consumedAt: string | null;
+  status: StationQrStatus;
+  scannedByFullName?: string;
+};
+
+export type StationScanHistoryEntry = {
+  id: string;
+  delegateFullName: string;
+  stationId: string;
+  stationName: string;
+  collectedAt: string;
 };
 
 export type VendorStore = {
@@ -47,6 +59,7 @@ export type VendorStore = {
   findValidVendorSession(sessionId: string, nowIso: string): Promise<ValidVendorSession | null>;
   readParticipationOpen(): Promise<boolean>;
   findCurrentQrForStation(stationId: string, nowIso: string): Promise<StationQr | null>;
+  listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]>;
   invalidateCurrentQrForStation(stationId: string, invalidatedAt: string): Promise<void>;
   createStationQr(qr: { stationId: string; token: string; expiresAt: string }): Promise<StationQr>;
 };
@@ -59,6 +72,7 @@ export type VendorDashboardResult =
       station: VendorStation;
       participationOpen: boolean;
       currentQr: StationQr | null;
+      scanHistory: StationScanHistoryEntry[];
     };
 
 const VENDOR_SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -133,9 +147,10 @@ export async function getVendorDashboard({
     return { authorized: false };
   }
 
-  const [participationOpen, currentQr] = await Promise.all([
+  const [participationOpen, currentQr, scanHistory] = await Promise.all([
     store.readParticipationOpen(),
     store.findCurrentQrForStation(session.vendor.station.id, nowIso),
+    store.listStationScanHistory(session.vendor.station.id),
   ]);
 
   return {
@@ -144,6 +159,7 @@ export async function getVendorDashboard({
     station: session.vendor.station,
     participationOpen,
     currentQr,
+    scanHistory,
   };
 }
 
@@ -213,6 +229,15 @@ type StationQrRow = {
   expires_at: string;
   invalidated_at: string | null;
   consumed_at: string | null;
+  delegate_station_stamps?: { delegates?: { full_name: string } | { full_name: string }[] | null } | Array<{ delegates?: { full_name: string } | { full_name: string }[] | null }> | null;
+};
+
+type StationScanHistoryRow = {
+  id: string;
+  station_id: string;
+  collected_at: string;
+  delegates?: { full_name: string } | { full_name: string }[] | null;
+  stations?: { name: string } | { name: string }[] | null;
 };
 
 function stationFromJoin(station: { id: string; name: string; active: boolean } | { id: string; name: string; active: boolean }[] | null | undefined) {
@@ -224,7 +249,30 @@ function stationFromJoin(station: { id: string; name: string; active: boolean } 
   return { id: row.id, name: row.name, active: row.active };
 }
 
-function stationQrFromRow(row: StationQrRow): StationQr {
+function stationQrStatus(row: StationQrRow, nowIso?: string): StationQrStatus {
+  if (row.consumed_at) {
+    return "consumed";
+  }
+
+  if (row.invalidated_at) {
+    return "invalidated";
+  }
+
+  if (nowIso && row.expires_at <= nowIso) {
+    return "expired";
+  }
+
+  return "active";
+}
+
+function scannedByFullNameFromRow(row: StationQrRow) {
+  const stamp = Array.isArray(row.delegate_station_stamps) ? row.delegate_station_stamps[0] : row.delegate_station_stamps;
+  const delegate = Array.isArray(stamp?.delegates) ? stamp?.delegates[0] : stamp?.delegates;
+  return delegate?.full_name;
+}
+
+function stationQrFromRow(row: StationQrRow, nowIso?: string): StationQr {
+  const scannedByFullName = scannedByFullNameFromRow(row);
   return {
     id: row.id,
     token: row.token,
@@ -233,6 +281,20 @@ function stationQrFromRow(row: StationQrRow): StationQr {
     expiresAt: row.expires_at,
     invalidatedAt: row.invalidated_at,
     consumedAt: row.consumed_at,
+    status: stationQrStatus(row, nowIso),
+    ...(scannedByFullName ? { scannedByFullName } : {}),
+  };
+}
+
+function scanHistoryFromRow(row: StationScanHistoryRow): StationScanHistoryEntry {
+  const delegate = Array.isArray(row.delegates) ? row.delegates[0] : row.delegates;
+  const station = Array.isArray(row.stations) ? row.stations[0] : row.stations;
+  return {
+    id: row.id,
+    delegateFullName: delegate?.full_name ?? "Unknown delegate",
+    stationId: row.station_id,
+    stationName: station?.name ?? "Unknown station",
+    collectedAt: row.collected_at,
   };
 }
 
@@ -327,11 +389,8 @@ export class SupabaseVendorStore implements VendorStore {
   async findCurrentQrForStation(stationId: string, nowIso: string): Promise<StationQr | null> {
     const { data, error } = await this.supabase
       .from("station_qr_tokens")
-      .select("id, token, station_id, expires_at, invalidated_at, consumed_at")
+      .select("id, token, station_id, expires_at, invalidated_at, consumed_at, delegate_station_stamps(delegates(full_name))")
       .eq("station_id", stationId)
-      .is("invalidated_at", null)
-      .is("consumed_at", null)
-      .gt("expires_at", nowIso)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle<StationQrRow>();
@@ -340,7 +399,21 @@ export class SupabaseVendorStore implements VendorStore {
       throw new Error(error.message);
     }
 
-    return data ? stationQrFromRow(data) : null;
+    return data ? stationQrFromRow(data, nowIso) : null;
+  }
+
+  async listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]> {
+    const { data, error } = await this.supabase
+      .from("delegate_station_stamps")
+      .select("id, station_id, collected_at, delegates(full_name), stations(name)")
+      .eq("station_id", stationId)
+      .order("collected_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map(scanHistoryFromRow);
   }
 
   async invalidateCurrentQrForStation(stationId: string, invalidatedAt: string): Promise<void> {

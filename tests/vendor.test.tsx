@@ -28,6 +28,9 @@ function createStore(overrides: Partial<VendorStore> = {}): VendorStore {
     async findCurrentQrForStation() {
       return null;
     },
+    async listStationScanHistory() {
+      return [];
+    },
     async invalidateCurrentQrForStation() {},
     async createStationQr(qr) {
       return {
@@ -38,6 +41,7 @@ function createStore(overrides: Partial<VendorStore> = {}): VendorStore {
         expiresAt: qr.expiresAt,
         invalidatedAt: null,
         consumedAt: null,
+        status: "active",
       };
     },
     ...overrides,
@@ -136,6 +140,72 @@ describe("vendor portal dashboard", () => {
       station: { id: "station-1", name: "AI Booth", active: true },
       participationOpen: true,
       currentQr: null,
+      scanHistory: [],
+    });
+  });
+
+  it("returns consumed QR status and full station scan history for polling", async () => {
+    const result = await getVendorDashboard({
+      store: createStore({
+        async findValidVendorSession() {
+          return {
+            id: "vendor-session-1",
+            vendor: {
+              id: "vendor-1",
+              username: "ai-vendor",
+              station: { id: "station-1", name: "AI Booth", active: true },
+            },
+          };
+        },
+        async findCurrentQrForStation(stationId) {
+          expect(stationId).toBe("station-1");
+          return {
+            id: "qr-1",
+            token: "secure-token",
+            stationId,
+            url: "/stamp/secure-token",
+            expiresAt: "2025-01-01T00:02:00.000Z",
+            invalidatedAt: null,
+            consumedAt: "2025-01-01T00:01:00.000Z",
+            status: "consumed",
+            scannedByFullName: "Ada Lovelace",
+          };
+        },
+        async listStationScanHistory(stationId) {
+          expect(stationId).toBe("station-1");
+          return [
+            {
+              id: "stamp-1",
+              delegateFullName: "Ada Lovelace",
+              stationId: "station-1",
+              stationName: "AI Booth",
+              collectedAt: "2025-01-01T00:01:00.000Z",
+            },
+            {
+              id: "stamp-2",
+              delegateFullName: "Grace Hopper",
+              stationId: "station-1",
+              stationName: "AI Booth",
+              collectedAt: "2025-01-01T00:03:00.000Z",
+            },
+          ];
+        },
+      }),
+      sessionId: "vendor-session-1",
+      now: () => new Date("2025-01-01T00:04:00.000Z"),
+    });
+
+    expect(result).toMatchObject({
+      authorized: true,
+      currentQr: {
+        status: "consumed",
+        scannedByFullName: "Ada Lovelace",
+        consumedAt: "2025-01-01T00:01:00.000Z",
+      },
+      scanHistory: [
+        { delegateFullName: "Ada Lovelace", collectedAt: "2025-01-01T00:01:00.000Z" },
+        { delegateFullName: "Grace Hopper", collectedAt: "2025-01-01T00:03:00.000Z" },
+      ],
     });
   });
 });
@@ -170,6 +240,7 @@ describe("manual station QR generation", () => {
         expiresAt: "2025-01-01T00:02:00.000Z",
         invalidatedAt: null,
         consumedAt: null,
+        status: "active",
       },
     });
   });
@@ -202,6 +273,7 @@ describe("manual station QR generation", () => {
             expiresAt: qr.expiresAt,
             invalidatedAt: null,
             consumedAt: null,
+            status: "active",
           };
         },
       }),
@@ -272,7 +344,9 @@ describe("vendor portal UI", () => {
             expiresAt: "2025-01-01T00:02:00.000Z",
             invalidatedAt: null,
             consumedAt: null,
+            status: "active",
           },
+          scanHistory: [],
         }}
       />,
     );
@@ -281,7 +355,73 @@ describe("vendor portal UI", () => {
     expect(screen.getByText("Signed in as ai-vendor"));
     expect(screen.getByRole("button", { name: "Generate new QR" })).toBeInTheDocument();
     expect(screen.getByText("/stamp/secure-token")).toBeInTheDocument();
+    expect(screen.getByText("Status: active")).toBeInTheDocument();
     expect(screen.getByText("Expires at 2025-01-01T00:02:00.000Z")).toBeInTheDocument();
+    expect(screen.getByText("Updates every 5 seconds.")).toBeInTheDocument();
+  });
+
+  it("shows expired QR status", () => {
+    render(
+      <VendorPortal
+        dashboard={{
+          authorized: true,
+          vendor: { id: "vendor-1", username: "ai-vendor" },
+          station: { id: "station-1", name: "AI Booth", active: true },
+          participationOpen: true,
+          currentQr: {
+            id: "qr-1",
+            token: "expired-token",
+            stationId: "station-1",
+            url: "/stamp/expired-token",
+            expiresAt: "2025-01-01T00:02:00.000Z",
+            invalidatedAt: null,
+            consumedAt: null,
+            status: "expired",
+          },
+          scanHistory: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Status: expired")).toBeInTheDocument();
+  });
+
+  it("shows consumed status and station scan history with delegate names and timestamps", () => {
+    render(
+      <VendorPortal
+        dashboard={{
+          authorized: true,
+          vendor: { id: "vendor-1", username: "ai-vendor" },
+          station: { id: "station-1", name: "AI Booth", active: true },
+          participationOpen: true,
+          currentQr: {
+            id: "qr-1",
+            token: "secure-token",
+            stationId: "station-1",
+            url: "/stamp/secure-token",
+            expiresAt: "2025-01-01T00:02:00.000Z",
+            invalidatedAt: null,
+            consumedAt: "2025-01-01T00:01:00.000Z",
+            status: "consumed",
+            scannedByFullName: "Ada Lovelace",
+          },
+          scanHistory: [
+            {
+              id: "stamp-1",
+              delegateFullName: "Ada Lovelace",
+              stationId: "station-1",
+              stationName: "AI Booth",
+              collectedAt: "2025-01-01T00:01:00.000Z",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Status: consumed")).toBeInTheDocument();
+    expect(screen.getByText("Scanned by Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Station scan history" })).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace — 2025-01-01T00:01:00.000Z")).toBeInTheDocument();
   });
 
   it("explains when QR generation is blocked because participation is closed", () => {
@@ -293,6 +433,7 @@ describe("vendor portal UI", () => {
           station: { id: "station-1", name: "AI Booth", active: true },
           participationOpen: false,
           currentQr: null,
+          scanHistory: [],
         }}
       />,
     );

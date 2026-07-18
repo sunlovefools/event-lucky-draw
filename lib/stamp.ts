@@ -31,7 +31,7 @@ export type StampCollectionStore = {
   readParticipationOpen(): Promise<boolean>;
   consumeStationQrToken(token: string, consumedAt: string): Promise<ConsumedStationQr | null>;
   hasDelegateStamp(delegateId: string, stationId: string): Promise<boolean>;
-  createDelegateStamp(delegateId: string, stationId: string, collectedAt: string): Promise<DelegateStationStamp>;
+  createDelegateStamp(delegateId: string, stationId: string, collectedAt: string, qrTokenId?: string): Promise<DelegateStationStamp>;
 };
 
 export type StampCollectionResult =
@@ -108,7 +108,7 @@ export async function collectStationStamp({
     };
   }
 
-  await store.createDelegateStamp(session.delegate.id, consumedQr.stationId, collectedAt);
+  await store.createDelegateStamp(session.delegate.id, consumedQr.stationId, collectedAt, consumedQr.id);
 
   return {
     ok: true,
@@ -236,10 +236,10 @@ export class SupabaseStampCollectionStore implements StampCollectionStore {
     return Boolean(data);
   }
 
-  async createDelegateStamp(delegateId: string, stationId: string, collectedAt: string): Promise<DelegateStationStamp> {
+  async createDelegateStamp(delegateId: string, stationId: string, collectedAt: string, qrTokenId?: string): Promise<DelegateStationStamp> {
     const { data, error } = await this.supabase
       .from("delegate_station_stamps")
-      .insert({ delegate_id: delegateId, station_id: stationId, collected_at: collectedAt })
+      .insert({ delegate_id: delegateId, station_id: stationId, collected_at: collectedAt, qr_token_id: qrTokenId })
       .select("id, delegate_id, station_id, collected_at")
       .single<DelegateStationStampRow>();
 

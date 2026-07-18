@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Current QR status updates by polling
-- [ ] Consumed/expired status is visible
-- [ ] Delegate full name is shown after scan
-- [ ] Full station scan history with timestamps is visible
+- [x] Current QR status updates by polling
+- [x] Consumed/expired status is visible
+- [x] Delegate full name is shown after scan
+- [x] Full station scan history with timestamps is visible

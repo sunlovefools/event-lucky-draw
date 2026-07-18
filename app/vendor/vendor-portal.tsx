@@ -30,10 +30,12 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
 
   return (
     <main className="shell">
+      <meta httpEquiv="refresh" content="5" />
       <section className="hero" aria-labelledby="vendor-station-title">
         <p className="eyebrow">Vendor station</p>
         <h1 id="vendor-station-title">{dashboard.station.name}</h1>
         <p className="lead">Signed in as {dashboard.vendor.username}</p>
+        <p>Updates every 5 seconds.</p>
         {error ? <p role="alert" className="health-error">{error}</p> : null}
       </section>
 
@@ -50,10 +52,26 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
         {dashboard.currentQr ? (
           <div className="qr-panel">
             <p>{dashboard.currentQr.url}</p>
+            <p>Status: {dashboard.currentQr.status}</p>
+            {dashboard.currentQr.scannedByFullName ? <p>Scanned by {dashboard.currentQr.scannedByFullName}</p> : null}
+            {dashboard.currentQr.consumedAt ? <p>Consumed at {dashboard.currentQr.consumedAt}</p> : null}
             <p>Expires at {dashboard.currentQr.expiresAt}</p>
           </div>
         ) : (
           <p>No active QR. Generate one when a delegate is ready to scan.</p>
+        )}
+      </section>
+
+      <section className="health-card" aria-labelledby="scan-history-title">
+        <h2 id="scan-history-title">Station scan history</h2>
+        {dashboard.scanHistory.length === 0 ? (
+          <p>No scans yet.</p>
+        ) : (
+          <ul>
+            {dashboard.scanHistory.map((scan) => (
+              <li key={scan.id}>{scan.delegateFullName} — {scan.collectedAt}</li>
+            ))}
+          </ul>
         )}
       </section>
     </main>
