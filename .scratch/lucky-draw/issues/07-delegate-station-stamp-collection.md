@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] Valid QR awards station stamp
-- [ ] Success message names station collected
-- [ ] Expired/used/invalid QR shows clear error
-- [ ] Duplicate station scan consumes QR without duplicate stamp
-- [ ] Concurrent scans are first-successful-request-wins
-- [ ] Stamp collection is blocked when participation is closed
+- [x] Valid QR awards station stamp
+- [x] Success message names station collected
+- [x] Expired/used/invalid QR shows clear error
+- [x] Duplicate station scan consumes QR without duplicate stamp
+- [x] Concurrent scans are first-successful-request-wins
+- [x] Stamp collection is blocked when participation is closed
