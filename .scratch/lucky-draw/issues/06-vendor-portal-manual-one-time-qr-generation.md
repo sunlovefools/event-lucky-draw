@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] Vendor login works
-- [ ] Vendor lands on assigned station
-- [ ] Vendor can generate short-lived one-time QR
-- [ ] Regeneration invalidates previous QR
-- [ ] QR generation is blocked when participation is closed
+- [x] Vendor login works
+- [x] Vendor lands on assigned station
+- [x] Vendor can generate short-lived one-time QR
+- [x] Regeneration invalidates previous QR
+- [x] QR generation is blocked when participation is closed
