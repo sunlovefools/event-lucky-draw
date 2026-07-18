@@ -1,22 +1,15 @@
 import { randomUUID } from "node:crypto";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { delegateFromRow, findValidDelegateSession as queryValidDelegateSession, type DelegateRow, type SessionDelegate, type ValidDelegateSession } from "@/lib/delegate-session";
+import { readParticipationOpen as queryParticipationOpen } from "@/lib/participation";
 
-export type Delegate = {
-  id: string;
-  registrationNumber: string;
-  fullName: string;
-};
+export type Delegate = SessionDelegate;
 
 export type DelegateSession = {
   id: string;
   delegateId: string;
   expiresAt: string;
-};
-
-export type ValidDelegateSession = {
-  id: string;
-  delegate: Delegate;
 };
 
 export type ProgressStation = {
@@ -230,25 +223,6 @@ export async function getDelegateHome({
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
-type DelegateRow = {
-  id: string;
-  registration_number: string;
-  full_name: string;
-  eligible_at?: string | null;
-  draw_status?: string | null;
-};
-
-type DelegateSessionRow = {
-  id: string;
-  delegate_id: string;
-  expires_at: string;
-  delegates?: DelegateRow | DelegateRow[] | null;
-};
-
-type EventSettingsRow = {
-  participation_open: boolean;
-};
-
 type ActiveStationRow = {
   id: string;
   name: string;
@@ -258,13 +232,14 @@ type DelegateStampRow = {
   station_id: string;
 };
 
+type DelegateWithEligibilityRow = DelegateRow & {
+  eligible_at?: string | null;
+  draw_status?: string | null;
+};
+
 type FinalSurveyResponseRow = {
   id: string;
 };
-
-function delegateFromRow(row: DelegateRow): Delegate {
-  return { id: row.id, registrationNumber: row.registration_number, fullName: row.full_name };
-}
 
 export class SupabaseDelegateStore implements DelegateStore {
   constructor(private readonly supabase: SupabaseClientLike = createSupabaseBrowserClient()) {}
@@ -313,41 +288,11 @@ export class SupabaseDelegateStore implements DelegateStore {
   }
 
   async findValidDelegateSession(sessionId: string, nowIso: string): Promise<ValidDelegateSession | null> {
-    const { data, error } = await this.supabase
-      .from("delegate_sessions")
-      .select("id, delegates!inner(id, registration_number, full_name)")
-      .eq("id", sessionId)
-      .gt("expires_at", nowIso)
-      .maybeSingle<DelegateSessionRow>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    if (!data) {
-      return null;
-    }
-
-    const delegate = Array.isArray(data.delegates) ? data.delegates[0] : data.delegates;
-    if (!delegate) {
-      return null;
-    }
-
-    return { id: data.id, delegate: delegateFromRow(delegate) };
+    return queryValidDelegateSession(this.supabase, sessionId, nowIso);
   }
 
   async readParticipationOpen(): Promise<boolean> {
-    const { data, error } = await this.supabase
-      .from("event_settings")
-      .select("participation_open")
-      .eq("id", 1)
-      .single<EventSettingsRow>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return data.participation_open;
+    return queryParticipationOpen(this.supabase);
   }
 
   async listActiveStations(): Promise<ActiveStation[]> {
@@ -383,7 +328,7 @@ export class SupabaseDelegateStore implements DelegateStore {
         .from("delegates")
         .select("id, registration_number, full_name, eligible_at, draw_status")
         .eq("id", delegateId)
-        .single<DelegateRow>(),
+        .single<DelegateWithEligibilityRow>(),
       this.supabase
         .from("final_survey_responses")
         .select("id")

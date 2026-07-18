@@ -1,15 +1,6 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase";
-
-export type StampDelegate = {
-  id: string;
-  registrationNumber: string;
-  fullName: string;
-};
-
-export type ValidStampDelegateSession = {
-  id: string;
-  delegate: StampDelegate;
-};
+import { type ValidDelegateSession } from "@/lib/delegate-session";
+import { readParticipationOpen as queryParticipationOpen } from "@/lib/participation";
 
 export type ConsumedStationQr = {
   id: string;
@@ -26,12 +17,31 @@ export type DelegateStationStamp = {
   collectedAt: string;
 };
 
+export type AuditStationQrToken = {
+  id: string;
+  stationId: string;
+  expiresAt: string;
+  invalidatedAt: string | null;
+  consumedAt: string | null;
+};
+
+export type ScanAuditLogInput = {
+  delegateId: string;
+  stationId: string | null;
+  qrTokenId: string | null;
+  qrToken: string;
+  result: "success" | "duplicate" | "expired" | "used" | "invalid" | string;
+  consumed: boolean;
+  scannedAt: string;
+};
+
 export type StampCollectionStore = {
-  findValidDelegateSession(sessionId: string, nowIso: string): Promise<ValidStampDelegateSession | null>;
   readParticipationOpen(): Promise<boolean>;
   consumeStationQrToken(token: string, consumedAt: string): Promise<ConsumedStationQr | null>;
+  findStationQrTokenForAudit(token: string): Promise<AuditStationQrToken | null>;
   hasDelegateStamp(delegateId: string, stationId: string): Promise<boolean>;
   createDelegateStamp(delegateId: string, stationId: string, collectedAt: string, qrTokenId?: string): Promise<DelegateStationStamp>;
+  recordScanAuditLog(log: ScanAuditLogInput): Promise<void>;
 };
 
 export type StampCollectionResult =
@@ -44,62 +54,90 @@ export type PreparedStampCollectionRequest =
 
 const INVALID_QR_ERROR = "This station QR is expired, used, or invalid. Please ask the station staff for a new QR.";
 
+function failedScanAuditResult(qr: AuditStationQrToken | null, scannedAt: string) {
+  if (!qr) {
+    return "invalid";
+  }
+
+  if (qr.consumedAt) {
+    return "used";
+  }
+
+  if (qr.expiresAt <= scannedAt) {
+    return "expired";
+  }
+
+  return "invalid";
+}
+
 export async function prepareStampCollectionRequest({
   store,
-  sessionId,
+  session,
   token,
   now = () => new Date(),
 }: {
   store: StampCollectionStore;
-  sessionId?: string | null;
+  session: ValidDelegateSession | null;
   token: string;
   now?: () => Date;
 }): Promise<PreparedStampCollectionRequest> {
   const pendingStampToken = token.trim();
-  if (!sessionId) {
+  if (!session) {
     return { registrationRequired: true, pendingStampToken };
   }
 
   return {
     registrationRequired: false,
-    result: await collectStationStamp({ store, sessionId, token: pendingStampToken, now }),
+    result: await collectStationStamp({ store, session, token: pendingStampToken, now }),
   };
 }
 
 export async function collectStationStamp({
   store,
-  sessionId,
+  session,
   token,
   now = () => new Date(),
 }: {
   store: StampCollectionStore;
-  sessionId?: string | null;
+  session: ValidDelegateSession;
   token: string;
   now?: () => Date;
 }): Promise<StampCollectionResult> {
   const collectedAt = now().toISOString();
-  if (!sessionId) {
-    return { ok: false, error: "Delegate registration required." };
-  }
-
-  const session = await store.findValidDelegateSession(sessionId, collectedAt);
-  if (!session) {
-    return { ok: false, error: "Delegate registration required." };
-  }
 
   const participationOpen = await store.readParticipationOpen();
   if (!participationOpen) {
     return { ok: false, error: "Participation is closed." };
   }
 
-  const consumedQr = await store.consumeStationQrToken(token.trim(), collectedAt);
+  const trimmedToken = token.trim();
+  const consumedQr = await store.consumeStationQrToken(trimmedToken, collectedAt);
   if (!consumedQr) {
+    const auditQr = await store.findStationQrTokenForAudit(trimmedToken);
+    await store.recordScanAuditLog({
+      delegateId: session.delegate.id,
+      stationId: auditQr?.stationId ?? null,
+      qrTokenId: auditQr?.id ?? null,
+      qrToken: trimmedToken,
+      result: failedScanAuditResult(auditQr, collectedAt),
+      consumed: false,
+      scannedAt: collectedAt,
+    });
     return { ok: false, error: INVALID_QR_ERROR };
   }
 
   const station = { id: consumedQr.stationId, name: consumedQr.stationName };
   const alreadyStamped = await store.hasDelegateStamp(session.delegate.id, consumedQr.stationId);
   if (alreadyStamped) {
+    await store.recordScanAuditLog({
+      delegateId: session.delegate.id,
+      stationId: consumedQr.stationId,
+      qrTokenId: consumedQr.id,
+      qrToken: consumedQr.token,
+      result: "duplicate",
+      consumed: true,
+      scannedAt: collectedAt,
+    });
     return {
       ok: true,
       station,
@@ -109,6 +147,15 @@ export async function collectStationStamp({
   }
 
   await store.createDelegateStamp(session.delegate.id, consumedQr.stationId, collectedAt, consumedQr.id);
+  await store.recordScanAuditLog({
+    delegateId: session.delegate.id,
+    stationId: consumedQr.stationId,
+    qrTokenId: consumedQr.id,
+    qrToken: consumedQr.token,
+    result: "success",
+    consumed: true,
+    scannedAt: collectedAt,
+  });
 
   return {
     ok: true,
@@ -120,21 +167,6 @@ export async function collectStationStamp({
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
-type DelegateRow = {
-  id: string;
-  registration_number: string;
-  full_name: string;
-};
-
-type DelegateSessionRow = {
-  id: string;
-  delegates?: DelegateRow | DelegateRow[] | null;
-};
-
-type EventSettingsRow = {
-  participation_open: boolean;
-};
-
 type ConsumedStationQrRow = {
   id: string;
   token: string;
@@ -143,16 +175,20 @@ type ConsumedStationQrRow = {
   consumed_at: string;
 };
 
+type AuditStationQrTokenRow = {
+  id: string;
+  station_id: string;
+  expires_at: string;
+  invalidated_at: string | null;
+  consumed_at: string | null;
+};
+
 type DelegateStationStampRow = {
   id: string;
   delegate_id: string;
   station_id: string;
   collected_at: string;
 };
-
-function delegateFromRow(row: DelegateRow): StampDelegate {
-  return { id: row.id, registrationNumber: row.registration_number, fullName: row.full_name };
-}
 
 function consumedQrFromRow(row: ConsumedStationQrRow): ConsumedStationQr {
   return {
@@ -164,6 +200,16 @@ function consumedQrFromRow(row: ConsumedStationQrRow): ConsumedStationQr {
   };
 }
 
+function auditQrFromRow(row: AuditStationQrTokenRow): AuditStationQrToken {
+  return {
+    id: row.id,
+    stationId: row.station_id,
+    expiresAt: row.expires_at,
+    invalidatedAt: row.invalidated_at,
+    consumedAt: row.consumed_at,
+  };
+}
+
 function stampFromRow(row: DelegateStationStampRow): DelegateStationStamp {
   return { id: row.id, delegateId: row.delegate_id, stationId: row.station_id, collectedAt: row.collected_at };
 }
@@ -171,42 +217,8 @@ function stampFromRow(row: DelegateStationStampRow): DelegateStationStamp {
 export class SupabaseStampCollectionStore implements StampCollectionStore {
   constructor(private readonly supabase: SupabaseClientLike = createSupabaseBrowserClient()) {}
 
-  async findValidDelegateSession(sessionId: string, nowIso: string): Promise<ValidStampDelegateSession | null> {
-    const { data, error } = await this.supabase
-      .from("delegate_sessions")
-      .select("id, delegates!inner(id, registration_number, full_name)")
-      .eq("id", sessionId)
-      .gt("expires_at", nowIso)
-      .maybeSingle<DelegateSessionRow>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    if (!data) {
-      return null;
-    }
-
-    const delegate = Array.isArray(data.delegates) ? data.delegates[0] : data.delegates;
-    if (!delegate) {
-      return null;
-    }
-
-    return { id: data.id, delegate: delegateFromRow(delegate) };
-  }
-
   async readParticipationOpen(): Promise<boolean> {
-    const { data, error } = await this.supabase
-      .from("event_settings")
-      .select("participation_open")
-      .eq("id", 1)
-      .single<EventSettingsRow>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return data.participation_open;
+    return queryParticipationOpen(this.supabase);
   }
 
   async consumeStationQrToken(token: string, consumedAt: string): Promise<ConsumedStationQr | null> {
@@ -219,6 +231,20 @@ export class SupabaseStampCollectionStore implements StampCollectionStore {
     }
 
     return data ? consumedQrFromRow(data) : null;
+  }
+
+  async findStationQrTokenForAudit(token: string): Promise<AuditStationQrToken | null> {
+    const { data, error } = await this.supabase
+      .from("station_qr_tokens")
+      .select("id, station_id, expires_at, invalidated_at, consumed_at")
+      .eq("token", token)
+      .maybeSingle<AuditStationQrTokenRow>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data ? auditQrFromRow(data) : null;
   }
 
   async hasDelegateStamp(delegateId: string, stationId: string): Promise<boolean> {
@@ -248,5 +274,21 @@ export class SupabaseStampCollectionStore implements StampCollectionStore {
     }
 
     return stampFromRow(data);
+  }
+
+  async recordScanAuditLog(log: ScanAuditLogInput): Promise<void> {
+    const { error } = await this.supabase.from("scan_audit_logs").insert({
+      delegate_id: log.delegateId,
+      station_id: log.stationId,
+      qr_token_id: log.qrTokenId,
+      qr_token: log.qrToken,
+      result: log.result,
+      consumed: log.consumed,
+      scanned_at: log.scannedAt,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 }

@@ -7,9 +7,9 @@ import {
   authenticateVendor,
   generateStationQr,
   getVendorDashboard,
-  hashVendorPassword,
   type VendorStore,
 } from "@/lib/vendor";
+import { hashPassword } from "@/lib/password";
 
 function createStore(overrides: Partial<VendorStore> = {}): VendorStore {
   const store: VendorStore = {
@@ -53,7 +53,7 @@ function createStore(overrides: Partial<VendorStore> = {}): VendorStore {
 describe("vendor username/password login", () => {
   it("creates a vendor session when credentials match an active vendor account", async () => {
     const salt = "vendor-salt";
-    const passwordHash = hashVendorPassword("station-secret", salt);
+    const passwordHash = hashPassword("station-secret", salt);
 
     const result = await authenticateVendor({
       store: createStore({
@@ -81,7 +81,7 @@ describe("vendor username/password login", () => {
 
   it("rejects invalid vendor credentials without creating a session", async () => {
     const salt = "vendor-salt";
-    const passwordHash = hashVendorPassword("station-secret", salt);
+    const passwordHash = hashPassword("station-secret", salt);
     let created = false;
 
     const result = await authenticateVendor({

@@ -1,6 +1,8 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { hashPassword } from "@/lib/password";
+import { readParticipationOpen as queryParticipationOpen } from "@/lib/participation";
 
 export type VendorStation = {
   id: string;
@@ -78,10 +80,6 @@ export type VendorDashboardResult =
 const VENDOR_SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 const STATION_QR_DURATION_MS = 2 * 60 * 1000;
 
-export function hashVendorPassword(password: string, salt: string) {
-  return createHash("sha256").update(`${salt}:${password}`).digest("hex");
-}
-
 function normalizeUsername(username: string) {
   return username.trim().toLowerCase();
 }
@@ -123,7 +121,7 @@ export async function authenticateVendor({
     return { ok: false, error: "Invalid username or password." };
   }
 
-  const candidateHash = hashVendorPassword(password, vendor.passwordSalt);
+  const candidateHash = hashPassword(password, vendor.passwordSalt);
   if (candidateHash !== vendor.passwordHash) {
     return { ok: false, error: "Invalid username or password." };
   }
@@ -216,10 +214,6 @@ type VendorSessionRow = {
     username: string;
     stations?: { id: string; name: string; active: boolean } | { id: string; name: string; active: boolean }[] | null;
   }> | null;
-};
-
-type EventSettingsRow = {
-  participation_open: boolean;
 };
 
 type StationQrRow = {
@@ -373,17 +367,7 @@ export class SupabaseVendorStore implements VendorStore {
   }
 
   async readParticipationOpen(): Promise<boolean> {
-    const { data, error } = await this.supabase
-      .from("event_settings")
-      .select("participation_open")
-      .eq("id", 1)
-      .single<EventSettingsRow>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return data.participation_open;
+    return queryParticipationOpen(this.supabase);
   }
 
   async findCurrentQrForStation(stationId: string, nowIso: string): Promise<StationQr | null> {

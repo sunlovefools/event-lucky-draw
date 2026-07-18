@@ -7,16 +7,17 @@ import {
   authenticateAdmin,
   createStation,
   createVendorAccount,
+  drawLuckyWinner,
   editStation,
   editVendorAccount,
   getAdminDashboard,
   getLuckyDrawPool,
-  hashAdminPassword,
   setDelegateDrawStatus,
   setParticipationState,
   updateDelegateName,
   type AdminStore,
 } from "@/lib/admin";
+import { hashPassword } from "@/lib/password";
 
 function createStore(overrides: Partial<AdminStore> = {}): AdminStore {
   const store: AdminStore = {
@@ -80,6 +81,28 @@ function createStore(overrides: Partial<AdminStore> = {}): AdminStore {
     async listParticipants() {
       return [];
     },
+    async listStationSummaries() {
+      return [];
+    },
+    async listScanAuditLogs() {
+      return [];
+    },
+    async listWinnerHistory() {
+      return [];
+    },
+    async listLuckyDrawCandidates() {
+      return [];
+    },
+    async recordLuckyDrawWinner(delegateId, drawLabel, wonAt) {
+      return {
+        id: "winner-1",
+        delegateId,
+        fullName: "Ada Lovelace",
+        registrationNumber: "REG-001",
+        drawLabel,
+        wonAt,
+      };
+    },
     async updateDelegateName(delegateId, fullName) {
       return {
         id: delegateId,
@@ -111,7 +134,7 @@ function createStore(overrides: Partial<AdminStore> = {}): AdminStore {
 describe("admin username/password login", () => {
   it("creates an admin session when the username and password match an active admin account", async () => {
     const salt = "login-salt";
-    const passwordHash = hashAdminPassword("correct horse battery staple", salt);
+    const passwordHash = hashPassword("correct horse battery staple", salt);
 
     const result = await authenticateAdmin({
       store: createStore({
@@ -137,7 +160,7 @@ describe("admin username/password login", () => {
 
   it("rejects invalid credentials without creating a session", async () => {
     const salt = "login-salt";
-    const passwordHash = hashAdminPassword("expected-password", salt);
+    const passwordHash = hashPassword("expected-password", salt);
     let createdSession = false;
 
     const result = await authenticateAdmin({
@@ -195,6 +218,9 @@ describe("protected admin dashboard", () => {
       stations: [],
       vendorAccounts: [],
       participants: [],
+      stationSummaries: [],
+      scanAuditLogs: [],
+      winnerHistory: [],
     });
   });
 });
@@ -358,7 +384,7 @@ describe("station and vendor management", () => {
       {
         username: "ai-vendor",
         stationId: "station-1",
-        passwordHash: hashAdminPassword("station-secret", salt),
+        passwordHash: hashPassword("station-secret", salt),
         passwordSalt: salt,
         active: true,
       },
@@ -452,6 +478,58 @@ describe("participation control", () => {
 });
 
 describe("participant dashboard and eligibility overrides", () => {
+  it("includes station completion summaries and scan audit logs on the protected dashboard", async () => {
+    const result = await getAdminDashboard({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async listStationSummaries() {
+          return [
+            { stationId: "station-1", stationName: "AI Booth", active: true, completions: 12 },
+            { stationId: "station-2", stationName: "Cloud Booth", active: false, completions: 4 },
+          ];
+        },
+        async listScanAuditLogs() {
+          return [
+            {
+              id: "audit-1",
+              delegateId: "delegate-1",
+              delegateFullName: "Ada Lovelace",
+              stationId: "station-1",
+              stationName: "AI Booth",
+              scannedAt: "2025-01-01T00:00:00.000Z",
+              qrTokenId: "qr-1",
+              qrToken: "secure-token",
+              result: "success",
+              consumed: true,
+            },
+          ];
+        },
+      }),
+      sessionId: "session-1",
+    });
+
+    expect(result).toMatchObject({
+      authorized: true,
+      stationSummaries: [
+        { stationId: "station-1", stationName: "AI Booth", active: true, completions: 12 },
+        { stationId: "station-2", stationName: "Cloud Booth", active: false, completions: 4 },
+      ],
+      scanAuditLogs: [
+        {
+          id: "audit-1",
+          delegateFullName: "Ada Lovelace",
+          stationName: "AI Booth",
+          scannedAt: "2025-01-01T00:00:00.000Z",
+          qrToken: "secure-token",
+          result: "success",
+          consumed: true,
+        },
+      ],
+    });
+  });
+
   it("includes participant progress, survey status, and draw status on the protected dashboard", async () => {
     const result = await getAdminDashboard({
       store: createStore({
@@ -562,6 +640,142 @@ describe("participant dashboard and eligibility overrides", () => {
     ]);
   });
 
+  it("draws a labeled winner from eligible and manually included non-winners", async () => {
+    const recorded: Array<{ delegateId: string; drawLabel: string; wonAt: string }> = [];
+
+    const result = await drawLuckyWinner({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async listLuckyDrawCandidates() {
+          return [
+            { id: "delegate-1", fullName: "Ada Lovelace", registrationNumber: "REG-001", drawStatus: "eligible" },
+            { id: "delegate-2", fullName: "Grace Hopper", registrationNumber: "REG-002", drawStatus: "manual_include" },
+          ];
+        },
+        async recordLuckyDrawWinner(delegateId, drawLabel, wonAt) {
+          recorded.push({ delegateId, drawLabel, wonAt });
+          return {
+            id: "winner-1",
+            delegateId,
+            fullName: "Grace Hopper",
+            registrationNumber: "REG-002",
+            drawLabel,
+            wonAt,
+          };
+        },
+      }),
+      sessionId: "session-1",
+      drawLabel: " Grand Prize ",
+      now: () => new Date("2025-01-01T00:10:00.000Z"),
+      random: () => 0.75,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      winner: {
+        id: "winner-1",
+        delegateId: "delegate-2",
+        fullName: "Grace Hopper",
+        registrationNumber: "REG-002",
+        drawLabel: "Grand Prize",
+        wonAt: "2025-01-01T00:10:00.000Z",
+      },
+    });
+    expect(recorded).toEqual([{ delegateId: "delegate-2", drawLabel: "Grand Prize", wonAt: "2025-01-01T00:10:00.000Z" }]);
+  });
+
+  it("excludes previous winners and disqualified delegates from the draw", async () => {
+    const recorded: string[] = [];
+
+    const result = await drawLuckyWinner({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async listLuckyDrawCandidates() {
+          return [
+            { id: "delegate-1", fullName: "Ada Lovelace", registrationNumber: "REG-001", drawStatus: "winner" },
+            { id: "delegate-2", fullName: "Grace Hopper", registrationNumber: "REG-002", drawStatus: "disqualified" },
+            { id: "delegate-3", fullName: "Katherine Johnson", registrationNumber: "REG-003", drawStatus: "eligible" },
+          ];
+        },
+        async recordLuckyDrawWinner(delegateId, drawLabel, wonAt) {
+          recorded.push(delegateId);
+          return {
+            id: "winner-1",
+            delegateId,
+            fullName: "Katherine Johnson",
+            registrationNumber: "REG-003",
+            drawLabel,
+            wonAt,
+          };
+        },
+      }),
+      sessionId: "session-1",
+      drawLabel: "Bonus Draw",
+      random: () => 0,
+    });
+
+    expect(result).toMatchObject({ ok: true, winner: { delegateId: "delegate-3" } });
+    expect(recorded).toEqual(["delegate-3"]);
+  });
+
+  it("does not draw when there are no eligible non-winners", async () => {
+    const result = await drawLuckyWinner({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async listLuckyDrawCandidates() {
+          return [];
+        },
+      }),
+      sessionId: "session-1",
+      drawLabel: "Bonus Draw",
+    });
+
+    expect(result).toEqual({ ok: false, error: "No eligible delegates are available for this draw." });
+  });
+
+  it("includes winner history on the protected dashboard", async () => {
+    const result = await getAdminDashboard({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async listWinnerHistory() {
+          return [
+            {
+              id: "winner-1",
+              delegateId: "delegate-1",
+              fullName: "Ada Lovelace",
+              registrationNumber: "REG-001",
+              drawLabel: "Grand Prize",
+              wonAt: "2025-01-01T00:10:00.000Z",
+            },
+          ];
+        },
+      }),
+      sessionId: "session-1",
+    });
+
+    expect(result).toMatchObject({
+      authorized: true,
+      winnerHistory: [
+        {
+          id: "winner-1",
+          delegateId: "delegate-1",
+          fullName: "Ada Lovelace",
+          registrationNumber: "REG-001",
+          drawLabel: "Grand Prize",
+          wonAt: "2025-01-01T00:10:00.000Z",
+        },
+      ],
+    });
+  });
+
   it("derives the lucky draw pool from delegate draw status", () => {
     const participants = [
       { id: "delegate-1", fullName: "Ada Lovelace", registrationNumber: "REG-001", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "eligible" as const },
@@ -597,6 +811,9 @@ describe("admin dashboard UI", () => {
           stations: [],
           vendorAccounts: [],
           participants: [],
+          stationSummaries: [],
+          scanAuditLogs: [],
+          winnerHistory: [],
         }}
       />,
     );
@@ -633,6 +850,9 @@ describe("admin dashboard UI", () => {
             },
           ],
           participants: [],
+          stationSummaries: [],
+          scanAuditLogs: [],
+          winnerHistory: [],
         }}
       />,
     );
@@ -651,6 +871,116 @@ describe("admin dashboard UI", () => {
     expect(screen.getByRole("button", { name: "Create vendor" })).toBeInTheDocument();
     expect(screen.getByText("ai-vendor — AI Booth — active")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save vendor" })).toBeInTheDocument();
+  });
+
+  it("shows lucky draw control and winner history to admins", () => {
+    render(
+      <AdminDashboard
+        dashboard={{
+          authorized: true,
+          admin: { id: "admin-1", username: "organizer" },
+          participation: {
+            open: true,
+            updatedAt: "2025-01-01T00:10:00.000Z",
+            updatedByUsername: "organizer",
+          },
+          stations: [],
+          vendorAccounts: [],
+          participants: [],
+          stationSummaries: [],
+          scanAuditLogs: [],
+          winnerHistory: [
+            {
+              id: "winner-1",
+              delegateId: "delegate-1",
+              fullName: "Ada Lovelace",
+              registrationNumber: "REG-001",
+              drawLabel: "Grand Prize",
+              wonAt: "2025-01-01T00:10:00.000Z",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Lucky draw" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Draw label")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Draw winner" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Winner history" })).toBeInTheDocument();
+    expect(screen.getByText("Grand Prize — Ada Lovelace — REG-001 — 2025-01-01T00:10:00.000Z")).toBeInTheDocument();
+  });
+
+  it("shows export links to admins", () => {
+    render(
+      <AdminDashboard
+        dashboard={{
+          authorized: true,
+          admin: { id: "admin-1", username: "organizer" },
+          participation: {
+            open: true,
+            updatedAt: "2025-01-01T00:10:00.000Z",
+            updatedByUsername: "organizer",
+          },
+          stations: [],
+          vendorAccounts: [],
+          participants: [],
+          stationSummaries: [],
+          scanAuditLogs: [],
+          winnerHistory: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Exports" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Export participants/progress" })).toHaveAttribute("href", "/admin/exports/participants");
+    expect(screen.getByRole("link", { name: "Export station completions" })).toHaveAttribute("href", "/admin/exports/station-completions");
+    expect(screen.getByRole("link", { name: "Export survey responses" })).toHaveAttribute("href", "/admin/exports/survey-responses");
+    expect(screen.getByRole("link", { name: "Export winner history" })).toHaveAttribute("href", "/admin/exports/winner-history");
+    expect(screen.getByRole("link", { name: "Export scan audit logs" })).toHaveAttribute("href", "/admin/exports/scan-audit");
+  });
+
+  it("shows station summaries and scan audit logs to admins", () => {
+    render(
+      <AdminDashboard
+        dashboard={{
+          authorized: true,
+          admin: { id: "admin-1", username: "organizer" },
+          participation: {
+            open: true,
+            updatedAt: "2025-01-01T00:10:00.000Z",
+            updatedByUsername: "organizer",
+          },
+          stations: [],
+          vendorAccounts: [],
+          participants: [],
+          stationSummaries: [
+            { stationId: "station-1", stationName: "AI Booth", active: true, completions: 12 },
+            { stationId: "station-2", stationName: "Cloud Booth", active: false, completions: 4 },
+          ],
+          scanAuditLogs: [
+            {
+              id: "audit-1",
+              delegateId: "delegate-1",
+              delegateFullName: "Ada Lovelace",
+              stationId: "station-1",
+              stationName: "AI Booth",
+              scannedAt: "2025-01-01T00:00:00.000Z",
+              qrTokenId: "qr-1",
+              qrToken: "secure-token",
+              result: "success",
+              consumed: true,
+            },
+          ],
+          winnerHistory: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Station summary" })).toBeInTheDocument();
+    expect(screen.getByText("AI Booth — active — 12 completions")).toBeInTheDocument();
+    expect(screen.getByText("Cloud Booth — disabled — 4 completions")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Scan audit log" })).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace — AI Booth — 2025-01-01T00:00:00.000Z — token secure-token — success — consumed")).toBeInTheDocument();
   });
 
   it("shows participant progress and eligibility override controls to admins", () => {
@@ -677,6 +1007,9 @@ describe("admin dashboard UI", () => {
               drawStatus: "eligible",
             },
           ],
+          stationSummaries: [],
+          scanAuditLogs: [],
+          winnerHistory: [],
         }}
       />,
     );

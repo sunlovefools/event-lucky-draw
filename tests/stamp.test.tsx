@@ -9,25 +9,29 @@ import {
   type StampCollectionStore,
 } from "@/lib/stamp";
 
+const validSession = {
+  id: "delegate-session-1",
+  delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+};
+
 function createStore(overrides: Partial<StampCollectionStore> = {}): StampCollectionStore {
-  const store: StampCollectionStore = {
-    async findValidDelegateSession() {
-      return {
-        id: "delegate-session-1",
-        delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
-      };
-    },
-    async readParticipationOpen() {
+  const store: StampCollectionStore = {    async readParticipationOpen() {
       return true;
     },
     async consumeStationQrToken(token, consumedAt) {
       return { id: "qr-1", token, stationId: "station-1", stationName: "AI Booth", consumedAt };
+    },
+    async findStationQrTokenForAudit() {
+      return null;
     },
     async hasDelegateStamp() {
       return false;
     },
     async createDelegateStamp(delegateId, stationId, collectedAt) {
       return { id: "stamp-1", delegateId, stationId, collectedAt };
+    },
+    async recordScanAuditLog() {
+      return undefined;
     },
     ...overrides,
   };
@@ -39,7 +43,7 @@ describe("pending stamp after registration", () => {
   it("sends an unregistered station QR visitor to registration with the token preserved", async () => {
     const result = await prepareStampCollectionRequest({
       store: createStore(),
-      sessionId: undefined,
+      session: null,
       token: "pending-token",
     });
 
@@ -49,7 +53,7 @@ describe("pending stamp after registration", () => {
   it("applies a valid pending QR after registration creates a delegate session", async () => {
     const result = await prepareStampCollectionRequest({
       store: createStore(),
-      sessionId: "delegate-session-1",
+      session: validSession,
       token: "pending-token",
       now: () => new Date("2025-01-01T00:00:00.000Z"),
     });
@@ -72,7 +76,7 @@ describe("pending stamp after registration", () => {
           return null;
         },
       }),
-      sessionId: "delegate-session-1",
+      session: validSession,
       token: "expired-pending-token",
     });
 
@@ -97,7 +101,7 @@ describe("delegate station stamp collection", () => {
           return { id: "stamp-1", delegateId, stationId, collectedAt };
         },
       }),
-      sessionId: "delegate-session-1",
+      session: validSession,
       token: "secure-token",
       now: () => new Date("2025-01-01T00:00:00.000Z"),
     });
@@ -109,6 +113,78 @@ describe("delegate station stamp collection", () => {
       message: "AI Booth stamp collected.",
     });
     expect(stamps).toEqual([{ delegateId: "delegate-1", stationId: "station-1", collectedAt: "2025-01-01T00:00:00.000Z" }]);
+  });
+
+  it("records scan audit details for successful, duplicate, and invalid QR attempts", async () => {
+    const auditLogs: Array<{ delegateId: string; stationId: string | null; qrTokenId: string | null; qrToken: string; result: string; consumed: boolean; scannedAt: string }> = [];
+    const store = createStore({
+      async recordScanAuditLog(log) {
+        auditLogs.push(log);
+      },
+    });
+
+    await collectStationStamp({
+      store,
+      session: validSession,
+      token: "success-token",
+      now: () => new Date("2025-01-01T00:00:00.000Z"),
+    });
+    await collectStationStamp({
+      store: createStore({
+        async hasDelegateStamp() {
+          return true;
+        },
+        async recordScanAuditLog(log) {
+          auditLogs.push(log);
+        },
+      }),
+      session: validSession,
+      token: "duplicate-token",
+      now: () => new Date("2025-01-01T00:01:00.000Z"),
+    });
+    await collectStationStamp({
+      store: createStore({
+        async consumeStationQrToken() {
+          return null;
+        },
+        async recordScanAuditLog(log) {
+          auditLogs.push(log);
+        },
+      }),
+      session: validSession,
+      token: "bad-token",
+      now: () => new Date("2025-01-01T00:02:00.000Z"),
+    });
+
+    expect(auditLogs).toEqual([
+      {
+        delegateId: "delegate-1",
+        stationId: "station-1",
+        qrTokenId: "qr-1",
+        qrToken: "success-token",
+        result: "success",
+        consumed: true,
+        scannedAt: "2025-01-01T00:00:00.000Z",
+      },
+      {
+        delegateId: "delegate-1",
+        stationId: "station-1",
+        qrTokenId: "qr-1",
+        qrToken: "duplicate-token",
+        result: "duplicate",
+        consumed: true,
+        scannedAt: "2025-01-01T00:01:00.000Z",
+      },
+      {
+        delegateId: "delegate-1",
+        stationId: null,
+        qrTokenId: null,
+        qrToken: "bad-token",
+        result: "invalid",
+        consumed: false,
+        scannedAt: "2025-01-01T00:02:00.000Z",
+      },
+    ]);
   });
 
   it("shows a clear error when the QR is expired, used, or invalid", async () => {
@@ -124,7 +200,7 @@ describe("delegate station stamp collection", () => {
           throw new Error("should not award stamp");
         },
       }),
-      sessionId: "delegate-session-1",
+      session: validSession,
       token: "bad-token",
     });
 
@@ -154,7 +230,7 @@ describe("delegate station stamp collection", () => {
           throw new Error("should not create duplicate stamp");
         },
       }),
-      sessionId: "delegate-session-1",
+      session: validSession,
       token: "duplicate-token",
     });
 
@@ -170,18 +246,7 @@ describe("delegate station stamp collection", () => {
 
   it("uses atomic QR consumption so concurrent scans are first-successful-request-wins", async () => {
     let consumed = false;
-    const store = createStore({
-      async findValidDelegateSession(sessionId) {
-        return {
-          id: sessionId,
-          delegate: {
-            id: sessionId === "delegate-session-1" ? "delegate-1" : "delegate-2",
-            registrationNumber: sessionId,
-            fullName: sessionId,
-          },
-        };
-      },
-      async consumeStationQrToken(token, consumedAt) {
+    const store = createStore({      async consumeStationQrToken(token, consumedAt) {
         if (consumed) {
           return null;
         }
@@ -190,8 +255,8 @@ describe("delegate station stamp collection", () => {
       },
     });
 
-    const first = await collectStationStamp({ store, sessionId: "delegate-session-1", token: "race-token" });
-    const second = await collectStationStamp({ store, sessionId: "delegate-session-2", token: "race-token" });
+    const first = await collectStationStamp({ store, session: { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "delegate-session-1", fullName: "delegate-session-1" } }, token: "race-token" });
+    const second = await collectStationStamp({ store, session: { id: "delegate-session-2", delegate: { id: "delegate-2", registrationNumber: "delegate-session-2", fullName: "delegate-session-2" } }, token: "race-token" });
 
     expect(first).toMatchObject({ ok: true, station: { id: "station-1", name: "AI Booth" }, duplicate: false });
     expect(second).toEqual({
@@ -213,7 +278,7 @@ describe("delegate station stamp collection", () => {
           throw new Error("should not consume QR while participation is closed");
         },
       }),
-      sessionId: "delegate-session-1",
+      session: validSession,
       token: "secure-token",
     });
 

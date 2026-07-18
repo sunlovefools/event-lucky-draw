@@ -5,15 +5,13 @@ import { render, screen } from "@testing-library/react";
 import { FinalSurveyConfirmation } from "@/app/final-survey/final-survey-confirmation";
 import { submitFinalSurvey, type FinalSurveyStore } from "@/lib/final-survey";
 
+const validSession = {
+  id: "delegate-session-1",
+  delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+};
+
 function createStore(overrides: Partial<FinalSurveyStore> = {}): FinalSurveyStore {
-  const store: FinalSurveyStore = {
-    async findValidDelegateSession() {
-      return {
-        id: "delegate-session-1",
-        delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
-      };
-    },
-    async readParticipationOpen() {
+  const store: FinalSurveyStore = {    async readParticipationOpen() {
       return true;
     },
     async listActiveStationIds() {
@@ -53,7 +51,7 @@ describe("final survey submission", () => {
           return { id: delegateId, eligibleAt, drawStatus: "eligible" };
         },
       }),
-      sessionId: "delegate-session-1",
+      session: validSession,
       answers: { satisfaction: "great", favoriteStation: "AI Booth", feedback: "Loved it" },
       now: () => new Date("2025-01-01T00:00:00.000Z"),
     });
@@ -87,7 +85,7 @@ describe("final survey submission", () => {
           throw new Error("should not submit survey before completion");
         },
       }),
-      sessionId: "delegate-session-1",
+      session: validSession,
       answers: { satisfaction: "great", favoriteStation: "AI Booth", feedback: "" },
     });
 
@@ -108,7 +106,7 @@ describe("final survey submission", () => {
           throw new Error("should not submit twice");
         },
       }),
-      sessionId: "delegate-session-1",
+      session: validSession,
       answers: { satisfaction: "great", favoriteStation: "AI Booth", feedback: "" },
     });
 
@@ -129,7 +127,7 @@ describe("final survey submission", () => {
           throw new Error("should not submit while closed");
         },
       }),
-      sessionId: "delegate-session-1",
+      session: validSession,
       answers: { satisfaction: "great", favoriteStation: "AI Booth", feedback: "" },
     });
 

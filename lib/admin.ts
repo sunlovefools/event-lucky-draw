@@ -1,6 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { hashPassword, newSalt as generateSalt } from "@/lib/password";
 
 export type AdminAccount = {
   id: string;
@@ -53,6 +54,42 @@ export type AdminParticipant = {
   drawStatus: DelegateDrawStatus;
 };
 
+export type AdminStationSummary = {
+  stationId: string;
+  stationName: string;
+  active: boolean;
+  completions: number;
+};
+
+export type AdminScanAuditLog = {
+  id: string;
+  delegateId: string | null;
+  delegateFullName: string | null;
+  stationId: string | null;
+  stationName: string | null;
+  scannedAt: string;
+  qrTokenId: string | null;
+  qrToken: string;
+  result: string;
+  consumed: boolean;
+};
+
+export type LuckyDrawCandidate = {
+  id: string;
+  fullName: string;
+  registrationNumber: string;
+  drawStatus: DelegateDrawStatus;
+};
+
+export type AdminWinnerHistoryEntry = {
+  id: string;
+  delegateId: string;
+  fullName: string;
+  registrationNumber: string;
+  drawLabel: string;
+  wonAt: string;
+};
+
 type StationInput = {
   name: string;
   active: boolean;
@@ -80,6 +117,11 @@ export type AdminStore = {
   updateParticipationState(open: boolean, adminId: string, updatedAt: string): Promise<ParticipationState>;
   listStations(): Promise<Station[]>;
   listVendorAccounts(): Promise<VendorAccount[]>;
+  listStationSummaries(): Promise<AdminStationSummary[]>;
+  listScanAuditLogs(): Promise<AdminScanAuditLog[]>;
+  listWinnerHistory(): Promise<AdminWinnerHistoryEntry[]>;
+  listLuckyDrawCandidates(): Promise<LuckyDrawCandidate[]>;
+  recordLuckyDrawWinner(delegateId: string, drawLabel: string, wonAt: string): Promise<AdminWinnerHistoryEntry>;
   createStation(station: StationInput): Promise<Station>;
   updateStation(stationId: string, station: StationInput): Promise<Station>;
   createVendorAccount(vendor: VendorAccountInput): Promise<VendorAccount>;
@@ -98,13 +140,12 @@ export type AdminDashboardResult =
       stations: Station[];
       vendorAccounts: VendorAccount[];
       participants: AdminParticipant[];
+      stationSummaries: AdminStationSummary[];
+      scanAuditLogs: AdminScanAuditLog[];
+      winnerHistory: AdminWinnerHistoryEntry[];
     };
 
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
-
-export function hashAdminPassword(password: string, salt: string) {
-  return createHash("sha256").update(`${salt}:${password}`).digest("hex");
-}
 
 async function requireAdminSession({
   store,
@@ -175,7 +216,7 @@ export async function authenticateAdmin({
     return { ok: false, error: "Invalid username or password." };
   }
 
-  const candidateHash = hashAdminPassword(password, admin.passwordSalt);
+  const candidateHash = hashPassword(password, admin.passwordSalt);
   if (candidateHash !== admin.passwordHash) {
     return { ok: false, error: "Invalid username or password." };
   }
@@ -198,11 +239,14 @@ export async function getAdminDashboard({
     return { authorized: false };
   }
 
-  const [participation, stations, vendorAccounts, participants] = await Promise.all([
+  const [participation, stations, vendorAccounts, participants, stationSummaries, scanAuditLogs, winnerHistory] = await Promise.all([
     store.readParticipationState(),
     store.listStations(),
     store.listVendorAccounts(),
     store.listParticipants(),
+    store.listStationSummaries(),
+    store.listScanAuditLogs(),
+    store.listWinnerHistory(),
   ]);
 
   return {
@@ -212,6 +256,9 @@ export async function getAdminDashboard({
     stations,
     vendorAccounts,
     participants,
+    stationSummaries,
+    scanAuditLogs,
+    winnerHistory,
   };
 }
 
@@ -308,7 +355,7 @@ export async function createVendorAccount({
   stationId,
   active,
   now = () => new Date(),
-  newSalt = randomUUID,
+  newSalt = generateSalt,
 }: {
   store: AdminStore;
   sessionId?: string | null;
@@ -339,7 +386,7 @@ export async function createVendorAccount({
     vendorAccount: await store.createVendorAccount({
       username: validFields.username,
       stationId: validFields.stationId,
-      passwordHash: hashAdminPassword(password, passwordSalt),
+      passwordHash: hashPassword(password, passwordSalt),
       passwordSalt,
       active,
     }),
@@ -441,6 +488,42 @@ export async function setDelegateDrawStatus({
   return { ok: true, participant: await store.updateDelegateDrawStatus(normalizedDelegateId, drawStatus) };
 }
 
+export async function drawLuckyWinner({
+  store,
+  sessionId,
+  drawLabel,
+  now = () => new Date(),
+  random = Math.random,
+}: {
+  store: AdminStore;
+  sessionId?: string | null;
+  drawLabel: string;
+  now?: () => Date;
+  random?: () => number;
+}): Promise<{ ok: true; winner: AdminWinnerHistoryEntry } | { ok: false; error: string }> {
+  const drawnAt = now().toISOString();
+  const session = await requireAdminSession({ store, sessionId, nowIso: drawnAt });
+  if (!session) {
+    return { ok: false, error: "Admin login required." };
+  }
+
+  const normalizedDrawLabel = drawLabel.trim().replace(/\s+/g, " ");
+  if (!normalizedDrawLabel) {
+    return { ok: false, error: "Draw label is required." };
+  }
+
+  const candidates = (await store.listLuckyDrawCandidates()).filter((candidate) =>
+    ["eligible", "manual_include"].includes(candidate.drawStatus),
+  );
+  if (candidates.length === 0) {
+    return { ok: false, error: "No eligible delegates are available for this draw." };
+  }
+
+  const winnerIndex = Math.min(candidates.length - 1, Math.floor(random() * candidates.length));
+  const winner = candidates[winnerIndex];
+  return { ok: true, winner: await store.recordLuckyDrawWinner(winner.id, normalizedDrawLabel, drawnAt) };
+}
+
 export function getLuckyDrawPool(participants: AdminParticipant[]) {
   return participants.filter((participant) => ["eligible", "manual_include"].includes(participant.drawStatus));
 }
@@ -490,11 +573,39 @@ type ParticipantRpcRow = {
   draw_status: string;
 };
 
+type StationSummaryRpcRow = {
+  station_id: string;
+  station_name: string;
+  active: boolean;
+  completions: number;
+};
+
+type ScanAuditLogRpcRow = {
+  id: string;
+  delegate_id: string | null;
+  delegate_full_name: string | null;
+  station_id: string | null;
+  station_name: string | null;
+  scanned_at: string;
+  qr_token_id: string | null;
+  qr_token: string;
+  result: string;
+  consumed: boolean;
+};
+
 type DelegateParticipantRow = {
   id: string;
   full_name: string;
   registration_number: string;
   draw_status: string;
+};
+
+type WinnerHistoryRow = {
+  id: string;
+  delegate_id: string;
+  draw_label: string;
+  won_at: string;
+  delegates?: { full_name: string; registration_number: string } | Array<{ full_name: string; registration_number: string }> | null;
 };
 
 function stationFromRow(row: StationRow): Station {
@@ -524,6 +635,30 @@ function participantFromRpcRow(row: ParticipantRpcRow): AdminParticipant {
   };
 }
 
+function stationSummaryFromRpcRow(row: StationSummaryRpcRow): AdminStationSummary {
+  return {
+    stationId: row.station_id,
+    stationName: row.station_name,
+    active: row.active,
+    completions: row.completions,
+  };
+}
+
+function scanAuditLogFromRpcRow(row: ScanAuditLogRpcRow): AdminScanAuditLog {
+  return {
+    id: row.id,
+    delegateId: row.delegate_id,
+    delegateFullName: row.delegate_full_name,
+    stationId: row.station_id,
+    stationName: row.station_name,
+    scannedAt: row.scanned_at,
+    qrTokenId: row.qr_token_id,
+    qrToken: row.qr_token,
+    result: row.result,
+    consumed: row.consumed,
+  };
+}
+
 function participantFromDelegateRow(row: DelegateParticipantRow): AdminParticipant {
   return {
     id: row.id,
@@ -532,6 +667,27 @@ function participantFromDelegateRow(row: DelegateParticipantRow): AdminParticipa
     stampsCollected: 0,
     totalActiveStations: 0,
     surveySubmitted: false,
+    drawStatus: row.draw_status,
+  };
+}
+
+function winnerHistoryFromRow(row: WinnerHistoryRow): AdminWinnerHistoryEntry {
+  const delegate = Array.isArray(row.delegates) ? row.delegates[0] : row.delegates;
+  return {
+    id: row.id,
+    delegateId: row.delegate_id,
+    fullName: delegate?.full_name ?? "Unknown delegate",
+    registrationNumber: delegate?.registration_number ?? "",
+    drawLabel: row.draw_label,
+    wonAt: row.won_at,
+  };
+}
+
+function luckyDrawCandidateFromRow(row: DelegateParticipantRow): LuckyDrawCandidate {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    registrationNumber: row.registration_number,
     drawStatus: row.draw_status,
   };
 }
@@ -730,6 +886,82 @@ export class SupabaseAdminStore implements AdminStore {
     }
 
     return (data ?? []).map(participantFromRpcRow);
+  }
+
+  async listStationSummaries(): Promise<AdminStationSummary[]> {
+    const { data, error } = await this.supabase.rpc("admin_station_summaries");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map(stationSummaryFromRpcRow);
+  }
+
+  async listScanAuditLogs(): Promise<AdminScanAuditLog[]> {
+    const { data, error } = await this.supabase.rpc("admin_scan_audit_logs");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map(scanAuditLogFromRpcRow);
+  }
+
+  async listWinnerHistory(): Promise<AdminWinnerHistoryEntry[]> {
+    const { data, error } = await this.supabase
+      .from("winner_history")
+      .select("id, delegate_id, draw_label, won_at, delegates(full_name, registration_number)")
+      .order("won_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map(winnerHistoryFromRow);
+  }
+
+  async listLuckyDrawCandidates(): Promise<LuckyDrawCandidate[]> {
+    const { data: delegates, error: delegateError } = await this.supabase
+      .from("delegates")
+      .select("id, full_name, registration_number, draw_status")
+      .in("draw_status", ["eligible", "manual_include"])
+      .order("full_name");
+
+    if (delegateError) {
+      throw new Error(delegateError.message);
+    }
+
+    const { data: winners, error: winnerError } = await this.supabase.from("winner_history").select("delegate_id");
+
+    if (winnerError) {
+      throw new Error(winnerError.message);
+    }
+
+    const previousWinnerIds = new Set((winners ?? []).map((winner: { delegate_id: string }) => winner.delegate_id));
+    return (delegates ?? [])
+      .filter((delegate: DelegateParticipantRow) => !previousWinnerIds.has(delegate.id))
+      .map(luckyDrawCandidateFromRow);
+  }
+
+  async recordLuckyDrawWinner(delegateId: string, drawLabel: string, wonAt: string): Promise<AdminWinnerHistoryEntry> {
+    const { data, error } = await this.supabase
+      .from("winner_history")
+      .insert({ delegate_id: delegateId, draw_label: drawLabel, won_at: wonAt })
+      .select("id, delegate_id, draw_label, won_at, delegates(full_name, registration_number)")
+      .single<WinnerHistoryRow>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const { error: updateError } = await this.supabase.from("delegates").update({ draw_status: "winner" }).eq("id", delegateId);
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    return winnerHistoryFromRow(data);
   }
 
   async updateDelegateName(delegateId: string, fullName: string): Promise<AdminParticipant> {
