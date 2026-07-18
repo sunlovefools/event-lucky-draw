@@ -27,6 +27,12 @@ function createStore(overrides: Partial<DelegateStore> = {}): DelegateStore {
     async readParticipationOpen() {
       return true;
     },
+    async listActiveStations() {
+      return [];
+    },
+    async listDelegateStampStationIds() {
+      return [];
+    },
     ...overrides,
   };
 
@@ -110,6 +116,7 @@ describe("delegate registration and resume", () => {
     expect(result).toEqual({
       identified: true,
       delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+      progress: { stations: [], completedCount: 0, totalRequired: 0, remainingCount: 0, readyForFinalSurvey: true },
     });
   });
 
@@ -162,6 +169,74 @@ describe("delegate registration and resume", () => {
   });
 });
 
+describe("delegate station progress", () => {
+  it("shows active stations as completed or uncompleted with remaining count", async () => {
+    const result = await getDelegateHome({
+      store: createStore({
+        async findValidDelegateSession() {
+          return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
+        },
+        async listActiveStations() {
+          return [
+            { id: "station-1", name: "AI Booth" },
+            { id: "station-2", name: "Cloud Booth" },
+            { id: "station-3", name: "Security Booth" },
+          ];
+        },
+        async listDelegateStampStationIds(delegateId) {
+          expect(delegateId).toBe("delegate-1");
+          return ["station-1", "station-3"];
+        },
+      }),
+      sessionId: "delegate-session-1",
+    });
+
+    expect(result).toEqual({
+      identified: true,
+      delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+      progress: {
+        stations: [
+          { id: "station-1", name: "AI Booth", completed: true },
+          { id: "station-2", name: "Cloud Booth", completed: false },
+          { id: "station-3", name: "Security Booth", completed: true },
+        ],
+        completedCount: 2,
+        totalRequired: 3,
+        remainingCount: 1,
+        readyForFinalSurvey: false,
+      },
+    });
+  });
+
+  it("does not count disabled stations as required progress", async () => {
+    const result = await getDelegateHome({
+      store: createStore({
+        async findValidDelegateSession() {
+          return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
+        },
+        async listActiveStations() {
+          return [{ id: "station-1", name: "AI Booth" }];
+        },
+        async listDelegateStampStationIds() {
+          return ["station-1", "disabled-station"];
+        },
+      }),
+      sessionId: "delegate-session-1",
+    });
+
+    expect(result).toMatchObject({
+      identified: true,
+      progress: {
+        stations: [{ id: "station-1", name: "AI Booth", completed: true }],
+        completedCount: 1,
+        totalRequired: 1,
+        remainingCount: 0,
+        readyForFinalSurvey: true,
+      },
+    });
+  });
+});
+
 describe("delegate home UI", () => {
   it("shows badge QR and manual registration fallback fields to unidentified delegates", async () => {
     render(await Home({
@@ -181,10 +256,25 @@ describe("delegate home UI", () => {
       delegateHomePromise: Promise.resolve({
         identified: true,
         delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+        progress: {
+          stations: [
+            { id: "station-1", name: "AI Booth", completed: true },
+            { id: "station-2", name: "Cloud Booth", completed: false },
+          ],
+          completedCount: 1,
+          totalRequired: 2,
+          remainingCount: 1,
+          readyForFinalSurvey: false,
+        },
       }),
     }));
 
     expect(screen.getByRole("heading", { name: "Welcome back, Ada Lovelace" })).toBeInTheDocument();
     expect(screen.getByText("Registration number: REG-001")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Station progress" })).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 required stations complete"));
+    expect(screen.getByText("1 stamp remaining"));
+    expect(screen.getByText("AI Booth — completed")).toBeInTheDocument();
+    expect(screen.getByText("Cloud Booth — not completed")).toBeInTheDocument();
   });
 });

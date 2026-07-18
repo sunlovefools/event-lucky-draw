@@ -19,15 +19,38 @@ export type ValidDelegateSession = {
   delegate: Delegate;
 };
 
+export type ProgressStation = {
+  id: string;
+  name: string;
+  completed: boolean;
+};
+
+export type ActiveStation = {
+  id: string;
+  name: string;
+};
+
+export type DelegateProgress = {
+  stations: ProgressStation[];
+  completedCount: number;
+  totalRequired: number;
+  remainingCount: number;
+  readyForFinalSurvey: boolean;
+};
+
 export type DelegateStore = {
   findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null>;
   createDelegate(delegate: { registrationNumber: string; fullName: string }): Promise<Delegate>;
   createDelegateSession(delegateId: string, expiresAt: string): Promise<DelegateSession>;
   findValidDelegateSession(sessionId: string, nowIso: string): Promise<ValidDelegateSession | null>;
   readParticipationOpen(): Promise<boolean>;
+  listActiveStations(): Promise<ActiveStation[]>;
+  listDelegateStampStationIds(delegateId: string): Promise<string[]>;
 };
 
-export type DelegateHomeResult = { identified: false } | { identified: true; delegate: Delegate };
+export type DelegateHomeResult =
+  | { identified: false }
+  | { identified: true; delegate: Delegate; progress: DelegateProgress };
 
 const DELEGATE_SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -160,7 +183,30 @@ export async function getDelegateHome({
     return { identified: false };
   }
 
-  return { identified: true, delegate: session.delegate };
+  const [activeStations, stampedStationIds] = await Promise.all([
+    store.listActiveStations(),
+    store.listDelegateStampStationIds(session.delegate.id),
+  ]);
+  const stampedStationIdSet = new Set(stampedStationIds);
+  const stations = activeStations.map((station) => ({
+    ...station,
+    completed: stampedStationIdSet.has(station.id),
+  }));
+  const completedCount = stations.filter((station) => station.completed).length;
+  const totalRequired = stations.length;
+  const remainingCount = totalRequired - completedCount;
+
+  return {
+    identified: true,
+    delegate: session.delegate,
+    progress: {
+      stations,
+      completedCount,
+      totalRequired,
+      remainingCount,
+      readyForFinalSurvey: remainingCount === 0,
+    },
+  };
 }
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
@@ -180,6 +226,15 @@ type DelegateSessionRow = {
 
 type EventSettingsRow = {
   participation_open: boolean;
+};
+
+type ActiveStationRow = {
+  id: string;
+  name: string;
+};
+
+type DelegateStampRow = {
+  station_id: string;
 };
 
 function delegateFromRow(row: DelegateRow): Delegate {
@@ -268,5 +323,32 @@ export class SupabaseDelegateStore implements DelegateStore {
     }
 
     return data.participation_open;
+  }
+
+  async listActiveStations(): Promise<ActiveStation[]> {
+    const { data, error } = await this.supabase
+      .from("stations")
+      .select("id, name")
+      .eq("active", true)
+      .order("name");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map((station: ActiveStationRow) => ({ id: station.id, name: station.name }));
+  }
+
+  async listDelegateStampStationIds(delegateId: string): Promise<string[]> {
+    const { data, error } = await this.supabase
+      .from("delegate_station_stamps")
+      .select("station_id")
+      .eq("delegate_id", delegateId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map((stamp: DelegateStampRow) => stamp.station_id);
   }
 }

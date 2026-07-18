@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Active stations are shown
-- [ ] Completed/uncompleted stamps are shown
-- [ ] Remaining stamp count is shown
-- [ ] Disabled stations no longer count as required
+- [x] Active stations are shown
+- [x] Completed/uncompleted stamps are shown
+- [x] Remaining stamp count is shown
+- [x] Disabled stations no longer count as required

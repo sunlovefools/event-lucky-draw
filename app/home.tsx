@@ -29,6 +29,21 @@ export async function Home({
             <h2 id="delegate-title">Welcome back, {delegateHome.delegate.fullName}</h2>
             <p>Registration number: {delegateHome.delegate.registrationNumber}</p>
             <p className="lead">Your progress will resume on this device.</p>
+            <section aria-labelledby="station-progress-title">
+              <h3 id="station-progress-title">Station progress</h3>
+              <p>
+                {delegateHome.progress.completedCount} of {delegateHome.progress.totalRequired} required stations complete
+              </p>
+              <p>{delegateHome.progress.remainingCount === 1 ? "1 stamp remaining" : `${delegateHome.progress.remainingCount} stamps remaining`}</p>
+              {delegateHome.progress.readyForFinalSurvey ? (
+                <p className="status-open">All required station stamps are complete.</p>
+              ) : null}
+              <ul className="station-progress-list">
+                {delegateHome.progress.stations.map((station) => (
+                  <li key={station.id}>{station.name} — {station.completed ? "completed" : "not completed"}</li>
+                ))}
+              </ul>
+            </section>
           </>
         ) : (
           <>
