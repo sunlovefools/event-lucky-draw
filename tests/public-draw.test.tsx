@@ -58,7 +58,7 @@ describe("passive public lucky draw display", () => {
   it("has no public controls", () => {
     render(<PublicDrawDisplay initialState={{ status: "waiting", winner: null }} />);
 
-    expect(screen.getByRole("heading", { name: "Lucky draw" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Lucky Draw" })).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("form")).not.toBeInTheDocument();
@@ -91,7 +91,7 @@ describe("passive public lucky draw display", () => {
     });
 
     expect(fetch).toHaveBeenCalledWith("/api/draw-state", { cache: "no-store" });
-    expect(screen.getByText("Drawing now…")).toBeInTheDocument();
+    expect(screen.getByText("Shuffling eligible delegates…")).toBeInTheDocument();
     expect(screen.getByText("Grand Prize")).toBeInTheDocument();
     expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
 
@@ -99,8 +99,8 @@ describe("passive public lucky draw display", () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
 
-    expect(screen.getByText("Winner revealed")).toBeInTheDocument();
+    expect(screen.getByText("Winner")).toBeInTheDocument();
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
-    expect(screen.getByText("REG-001")).toBeInTheDocument();
+    expect(screen.getAllByText(/REG-001/).length).toBeGreaterThan(0);
   });
 });

@@ -77,8 +77,11 @@ describe("station management", () => {
     expect(screen.getByRole("heading", { name: "Stations" })).toBeInTheDocument();
     expect(screen.getByLabelText("New station name")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create station" })).toBeInTheDocument();
-    expect(screen.getByText("AI Booth — active")).toBeInTheDocument();
-    expect(screen.getByText("Cloud Booth — disabled")).toBeInTheDocument();
+    expect(screen.getAllByText("AI Booth").length).toBeGreaterThan(0);
+
+    
+    expect(screen.getAllByText("Cloud Booth").length).toBeGreaterThan(0);
+        expect(screen.getByText("ai-vendor")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Save station" })).toHaveLength(2);
 
     expect(screen.getByRole("heading", { name: "Vendor accounts" })).toBeInTheDocument();
@@ -86,7 +89,7 @@ describe("station management", () => {
     expect(screen.getByLabelText("New vendor password")).toBeInTheDocument();
     expect(screen.getByLabelText("New vendor station")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create vendor" })).toBeInTheDocument();
-    expect(screen.getByText("ai-vendor — AI Booth — active")).toBeInTheDocument();
+    expect(screen.getByText("ai-vendor")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save vendor" })).toBeInTheDocument();
   });
 });

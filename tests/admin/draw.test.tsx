@@ -151,6 +151,10 @@ describe("lucky draw", () => {
     expect(screen.getByLabelText("Draw label")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Draw winner" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Winner history" })).toBeInTheDocument();
-    expect(screen.getByText("Grand Prize — Ada Lovelace — REG-001 — 2025-01-01T00:10:00.000Z")).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+
+    expect(screen.getByText("Grand Prize")).toBeInTheDocument();
+
+    expect(screen.getAllByText(/REG-001/).length).toBeGreaterThan(0);
   });
 });

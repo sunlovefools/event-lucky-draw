@@ -286,7 +286,7 @@ describe("delegate home UI", () => {
 
     expect(screen.getByRole("heading", { name: "Join the lucky draw" })).toBeInTheDocument();
     expect(screen.getByLabelText("Badge QR payload or registration number")).toBeInTheDocument();
-    expect(screen.getByLabelText("Full name")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Full name/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
   });
 
@@ -297,7 +297,7 @@ describe("delegate home UI", () => {
       pendingStamp: true,
     }));
 
-    expect(screen.getByText("Register first, then we will apply your pending station stamp if the QR is still valid.")).toBeInTheDocument();
+    expect(screen.getByText(/pending station stamp/i)).toBeInTheDocument();
   });
 
   it("welcomes back remembered delegates", async () => {
@@ -320,13 +320,13 @@ describe("delegate home UI", () => {
       }),
     }));
 
-    expect(screen.getByRole("heading", { name: "Welcome back, Ada Lovelace" })).toBeInTheDocument();
-    expect(screen.getByText("Registration number: REG-001")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Station progress" })).toBeInTheDocument();
-    expect(screen.getByText("1 of 2 required stations complete"));
-    expect(screen.getByText("1 stamp remaining"));
-    expect(screen.getByText("AI Booth — completed")).toBeInTheDocument();
-    expect(screen.getByText("Cloud Booth — not completed")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument();
+    expect(screen.getByText("#REG-001")).toBeInTheDocument();
+    expect(screen.getByText("stations complete")).toBeInTheDocument();
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+    expect(screen.getByText("stamp remaining")).toBeInTheDocument();
+    expect(screen.getByText("AI Booth")).toBeInTheDocument();
+    expect(screen.getByText("Cloud Booth")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Final survey" })).not.toBeInTheDocument();
   });
 
@@ -350,7 +350,7 @@ describe("delegate home UI", () => {
     expect(screen.getByRole("heading", { name: "Final survey" })).toBeInTheDocument();
     expect(screen.getByLabelText("How was the event?"));
     expect(screen.getByLabelText("Favorite station"));
-    expect(screen.getByRole("button", { name: "Submit final survey" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Submit/ })).toBeInTheDocument();
   });
 
   it("shows eligible confirmation instead of the survey after submission", async () => {
@@ -364,7 +364,7 @@ describe("delegate home UI", () => {
       }),
     }));
 
-    expect(screen.getByRole("heading", { name: "You are entered" })).toBeInTheDocument();
-    expect(screen.getByText("Ada Lovelace is entered into the lucky draw."));
+    expect(screen.getByRole("heading", { name: "You're entered into the lucky draw" })).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
   });
 });

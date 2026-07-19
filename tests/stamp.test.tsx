@@ -291,7 +291,7 @@ describe("stamp collection UI", () => {
   it("shows the station success message", () => {
     render(<StampResult result={{ ok: true, station: { id: "station-1", name: "AI Booth" }, duplicate: false, message: "AI Booth stamp collected." }} />);
 
-    expect(screen.getByRole("heading", { name: "Stamp collected" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Stamp collected!" })).toBeInTheDocument();
     expect(screen.getByText("AI Booth stamp collected.")).toBeInTheDocument();
   });
 
