@@ -54,7 +54,7 @@ Migration files live in `supabase/migrations` and should be committed with the f
 
 ## Health path
 
-- `/` renders the app shell and shows database health.
+- `/` renders the app shell and shows database health
 - `/api/health` returns JSON health status and checks the Supabase `health_checks` table.
 
 ## Admin access
