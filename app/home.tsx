@@ -1,10 +1,9 @@
 import React from "react";
 
-import { identifyDelegateAction } from "@/app/delegate/actions";
 import { submitFinalSurveyAction } from "@/app/final-survey/actions";
 import { friendlyError } from "@/lib/messages";
 import type { DelegateHomeResult } from "@/lib/delegate";
-import { getHealthStatus, type HealthStatus } from "@/lib/health";
+import { DelegateRegister } from "@/app/components/delegate-register";
 
 function CheckIcon() {
   return (
@@ -15,17 +14,15 @@ function CheckIcon() {
 }
 
 export async function Home({
-  healthPromise = getHealthStatus(),
   delegateHomePromise = Promise.resolve({ identified: false }),
   error,
   pendingStamp = false,
 }: {
-  healthPromise?: Promise<HealthStatus>;
   delegateHomePromise?: Promise<DelegateHomeResult>;
   error?: string;
   pendingStamp?: boolean;
 }) {
-  const [health, delegateHome] = await Promise.all([healthPromise, delegateHomePromise]);
+  const delegateHome = await delegateHomePromise;
   const errorMessage = friendlyError(error);
 
   return (
@@ -39,79 +36,9 @@ export async function Home({
       {delegateHome.identified ? (
         <DelegateView delegateHome={delegateHome} />
       ) : (
-        <RegisterCard errorMessage={errorMessage} pendingStamp={pendingStamp} />
+        <DelegateRegister errorMessage={errorMessage} pendingStamp={pendingStamp} />
       )}
-
-      <section className="card" aria-label="Application health">
-        <div className="section-head">
-          <h2>System status</h2>
-          <span className={`badge ${health.ok && health.database === "reachable" ? "badge-success" : "badge-warn"}`}>
-            <span className="dot" />
-            {health.ok && health.database === "reachable" ? "All systems go" : "Check status"}
-          </span>
-        </div>
-        <dl className="health">
-          <div>
-            <dt>App</dt>
-            <dd>{health.app}</dd>
-          </div>
-          <div>
-            <dt>Database</dt>
-            <dd>{health.database}</dd>
-          </div>
-          <div>
-            <dt>Last checked</dt>
-            <dd>{health.checkedAt}</dd>
-          </div>
-        </dl>
-        {health.error ? <p className="alert alert-danger" style={{ marginTop: "1rem" }}>{health.error}</p> : null}
-      </section>
     </main>
-  );
-}
-
-function RegisterCard({ errorMessage, pendingStamp }: { errorMessage?: string | null; pendingStamp: boolean }) {
-  return (
-    <section className="card" aria-labelledby="register-title">
-      <div className="section-head">
-        <h2 id="register-title">Join the lucky draw</h2>
-        <span className="badge badge-info">Not registered yet</span>
-      </div>
-      <p className="lead">Scan your badge QR or type your registration number to begin.</p>
-
-      {pendingStamp ? (
-        <p className="alert alert-info" style={{ marginTop: "1rem" }}>
-          Register first, then we'll apply your pending station stamp if the QR is still valid.
-        </p>
-      ) : null}
-      {errorMessage ? <p className="alert alert-danger" role="alert">{errorMessage}</p> : null}
-
-      <form action={identifyDelegateAction} className="form" style={{ marginTop: "1.25rem" }}>
-        <div className="field">
-          <label className="field-label" htmlFor="badgePayload">
-            Badge QR payload or registration number
-          </label>
-          <input
-            id="badgePayload"
-            name="badgePayload"
-            className="input"
-            autoComplete="off"
-            autoFocus
-            required
-            placeholder="e.g. REG-1024 or badge scan result"
-          />
-        </div>
-        <div className="field">
-          <label className="field-label" htmlFor="fullName">
-            Full name <span className="hint">(first-time registration only)</span>
-          </label>
-          <input id="fullName" name="fullName" className="input" autoComplete="name" placeholder="Jane Doe" />
-        </div>
-        <button type="submit" className="btn btn-primary btn-block">
-          Continue
-        </button>
-      </form>
-    </section>
   );
 }
 

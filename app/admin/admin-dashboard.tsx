@@ -16,6 +16,7 @@ import { friendlyError } from "@/lib/messages";
 import type { AdminDashboardResult } from "@/lib/admin/dashboard";
 import type { Station } from "@/lib/shared/station";
 import type { DelegateDrawStatus } from "@/lib/admin/participants";
+import type { HealthStatus } from "@/lib/health";
 
 function StationSelect({ stations, label, name, defaultValue }: { stations: Station[]; label: string; name: string; defaultValue?: string }) {
   return (
@@ -51,7 +52,7 @@ function formatTime(iso: string) {
   }
 }
 
-export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboardResult; error?: string }) {
+export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminDashboardResult; error?: string; health?: HealthStatus }) {
   if (!dashboard.authorized) {
     const errorMessage = friendlyError(error);
     return (
@@ -99,8 +100,34 @@ export function AdminDashboard({ dashboard, error }: { dashboard: AdminDashboard
         {errorMessage ? <p className="alert alert-danger" role="alert" style={{ marginTop: "1rem" }}>{errorMessage}</p> : null}
       </section>
 
+      <section className="card" id="status" aria-label="Application health">
+        <div className="section-head">
+          <h2>System status</h2>
+          <span className={`badge ${health?.ok && health?.database === "reachable" ? "badge-success" : "badge-warn"}`}>
+            <span className="dot" />
+            {health?.ok && health?.database === "reachable" ? "All systems go" : "Check status"}
+          </span>
+        </div>
+        <dl className="health">
+          <div>
+            <dt>App</dt>
+            <dd>{health?.app}</dd>
+          </div>
+          <div>
+            <dt>Database</dt>
+            <dd>{health?.database}</dd>
+          </div>
+          <div>
+            <dt>Last checked</dt>
+            <dd>{health?.checkedAt}</dd>
+          </div>
+        </dl>
+        {health?.error ? <p className="alert alert-danger" style={{ marginTop: "1rem" }}>{health.error}</p> : null}
+      </section>
+
       <nav className="section-nav" aria-label="Dashboard sections">
         <a href="#participation">Participation</a>
+        <a href="#status">Status</a>
         <a href="#stations">Stations</a>
         <a href="#vendors">Vendors</a>
         <a href="#draw">Draw</a>

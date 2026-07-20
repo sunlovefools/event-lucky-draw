@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { ADMIN_SESSION_COOKIE } from "@/app/admin/session";
 import { AdminDashboard } from "@/app/admin/admin-dashboard";
 import { getAdminDashboard, SupabaseDashboardStore } from "@/lib/admin/dashboard";
+import { getHealthStatus } from "@/lib/health";
 
 function errorMessage(error?: string) {
   if (error === "invalid-login") {
@@ -36,5 +37,5 @@ export default async function AdminPage({ searchParams }: { searchParams?: Promi
     sessionId: cookieStore.get(ADMIN_SESSION_COOKIE)?.value,
   });
 
-  return <AdminDashboard dashboard={dashboard} error={errorMessage(params?.error)} />;
+  return <AdminDashboard dashboard={dashboard} error={errorMessage(params?.error)} health={await getHealthStatus()} />;
 }

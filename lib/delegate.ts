@@ -59,7 +59,7 @@ export type DelegateHomeResult =
 
 const DELEGATE_SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
-function extractRegistrationNumberFromBadgePayload(payload: string) {
+export function extractRegistrationNumberFromBadgePayload(payload: string) {
   const trimmed = payload.trim();
   if (!trimmed) {
     return "";
