@@ -278,21 +278,18 @@ describe("delegate station progress", () => {
 });
 
 describe("delegate home UI", () => {
-  it("shows badge QR and manual registration fallback fields to unidentified delegates", async () => {
+  it("shows the badge QR scanner with a manual entry fallback for unidentified delegates", async () => {
     render(await Home({
-      healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:00:00.000Z" }),
       delegateHomePromise: Promise.resolve({ identified: false }),
     }));
 
     expect(screen.getByRole("heading", { name: "Join the lucky draw" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Badge QR payload or registration number")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Full name/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
+    expect(screen.getByText("Scan your badge QR")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Type code instead" })).toBeInTheDocument();
   });
 
   it("tells unregistered delegates a pending station stamp will apply after registration", async () => {
     render(await Home({
-      healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:00:00.000Z" }),
       delegateHomePromise: Promise.resolve({ identified: false }),
       pendingStamp: true,
     }));
@@ -302,7 +299,6 @@ describe("delegate home UI", () => {
 
   it("welcomes back remembered delegates", async () => {
     render(await Home({
-      healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:00:00.000Z" }),
       delegateHomePromise: Promise.resolve({
         identified: true,
         delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
@@ -332,7 +328,6 @@ describe("delegate home UI", () => {
 
   it("shows the final survey after all active stations are complete", async () => {
     render(await Home({
-      healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:00:00.000Z" }),
       delegateHomePromise: Promise.resolve({
         identified: true,
         delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
@@ -355,7 +350,6 @@ describe("delegate home UI", () => {
 
   it("shows eligible confirmation instead of the survey after submission", async () => {
     render(await Home({
-      healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:00:00.000Z" }),
       delegateHomePromise: Promise.resolve({
         identified: true,
         delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },

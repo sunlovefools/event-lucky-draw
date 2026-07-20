@@ -72,11 +72,11 @@ describe("Supabase-backed health path", () => {
 });
 
 describe("home page", () => {
-  it("renders the app shell and database health state", async () => {
-    render(await Home({ healthPromise: Promise.resolve({ ok: true, app: "event-lucky-draw", database: "reachable", checkedAt: "2025-01-01T00:03:00.000Z" }) }));
+  it("renders the app shell and the delegate registration scanner", async () => {
+    render(await Home({ }));
 
     expect(screen.getByRole("heading", { name: "Event Station Quest Lucky Draw" })).toBeInTheDocument();
     expect(screen.getByText(/collect your stamps/));
-    expect(screen.getByText("reachable"));
+    expect(screen.getByText("Scan your badge QR")).toBeInTheDocument();
   });
 });
