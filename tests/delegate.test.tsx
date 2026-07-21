@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { Home } from "@/app/home";
 import {
@@ -284,8 +284,24 @@ describe("delegate home UI", () => {
     }));
 
     expect(screen.getByRole("heading", { name: "Join the lucky draw" })).toBeInTheDocument();
-    expect(screen.getByText("Scan your badge QR")).toBeInTheDocument();
+    expect(screen.getByText("Scan Your Conference Badge QR")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Type code instead" })).toBeInTheDocument();
+  });
+
+  it("keeps the QR reader mounted while requesting camera access", async () => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: async () => ({}) },
+    });
+
+    render(await Home({
+      delegateHomePromise: Promise.resolve({ identified: false }),
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+
+    expect(document.getElementById("delegate-qr-reader")).toBeInTheDocument();
+    expect(screen.getByText("Requesting camera permission…")).toBeInTheDocument();
   });
 
 

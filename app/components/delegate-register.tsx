@@ -35,11 +35,10 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
   const [checking, setChecking] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
 
-  // Full-screen branded loading overlay. It is shown optimistically before a
-  // server action that redirects, and is hidden ONLY when we stay on this page
-  // (the name step) — never on the redirect itself. On a redirect the overlay
-  // stays up until this whole component unmounts as the new page mounts, so
-  // the previous page is never revealed behind it.
+  // Full-screen branded loading overlay. It is shown only once a redirecting
+  // server action is about to run. On a redirect the overlay stays up until this
+  // whole component unmounts as the new page mounts, so the previous page is
+  // never revealed behind it.
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayMessage, setOverlayMessage] = useState<string | undefined>();
   const overlayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,15 +47,9 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
     setOverlayMessage(message);
     setOverlayVisible(true);
     // Safety release: if navigation never happens (e.g. a transport error with
-    // no redirect), drop the overlay so the form stays usable.
-    overlayTimer.current = setTimeout(() => setOverlayVisible(false), 8000);
-  }, []);
-  const hideOverlay = useCallback(() => {
-    if (overlayTimer.current) {
-      clearTimeout(overlayTimer.current);
-      overlayTimer.current = null;
-    }
-    setOverlayVisible(false);
+    // no redirect), drop the overlay so the form stays usable. Successful
+    // navigation normally unmounts this component before the timer fires.
+    overlayTimer.current = setTimeout(() => setOverlayVisible(false), 6000);
   }, []);
   useEffect(() => () => {
     if (overlayTimer.current) clearTimeout(overlayTimer.current);
@@ -102,7 +95,6 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
       setCode(trimmed);
       setChecking(true);
       setScanError(null);
-      showOverlay("Checking your badge…");
 
       let registered = false;
       try {
@@ -127,11 +119,10 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
       }
 
       // Not registered (or lookup failed): reveal the name step on this page.
-      hideOverlay();
       setStep("name");
       setChecking(false);
     },
-    [resume, stopCamera, checking, showOverlay, hideOverlay],
+    [resume, stopCamera, checking, showOverlay],
   );
 
   // Start the camera only after the user taps "Allow camera access"
@@ -287,15 +278,18 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
                     Allow camera access
                   </button>
                 </div>
-              ) : cameraStarted ? (
-                <div className="qr-reader-wrap">
-                  <div id={READER_ID} className="qr-reader camera-enter" />
-                </div>
               ) : (
-                <p className="camera-requesting" aria-live="polite">
-                  <span className="camera-requesting__spinner" aria-hidden="true" />
-                  Requesting camera permission…
-                </p>
+                <>
+                  <div className="qr-reader-wrap">
+                    <div id={READER_ID} className={`qr-reader${cameraStarted ? " camera-enter" : ""}`} />
+                  </div>
+                  {!cameraStarted ? (
+                    <p className="camera-requesting" aria-live="polite">
+                      <span className="camera-requesting__spinner" aria-hidden="true" />
+                      Requesting camera permission…
+                    </p>
+                  ) : null}
+                </>
               )}
 
               {scanError ? <p className="inline-error" style={{ marginTop: "1rem" }}>{scanError}</p> : null}

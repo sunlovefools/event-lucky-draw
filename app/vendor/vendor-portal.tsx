@@ -1,9 +1,10 @@
 import React from "react";
 
 import { RefreshButton } from "@/app/components/refresh-button";
+import { logoutVendorAction } from "@/app/vendor/actions";
 import { VendorScanner } from "@/app/vendor/vendor-scanner";
 import { friendlyError } from "@/lib/messages";
-import { loginVendorAction } from "@/app/vendor/actions";
+import { VendorLoginForm } from "@/app/vendor/vendor-login-form";
 import type { VendorDashboardResult } from "@/lib/vendor/portal";
 
 function formatTime(iso: string) {
@@ -24,17 +25,7 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
           <h1 id="vendor-login-title">Vendor login</h1>
           <p className="lead">Sign in to stamp delegates at your station.</p>
           {errorMessage ? <p className="alert alert-danger" role="alert">{errorMessage}</p> : null}
-          <form action={loginVendorAction} className="form" style={{ marginTop: "1.25rem" }}>
-            <div className="field">
-              <label className="field-label" htmlFor="v-username">Username</label>
-              <input id="v-username" name="username" className="input" autoComplete="username" required autoFocus />
-            </div>
-            <div className="field">
-              <label className="field-label" htmlFor="v-password">Password</label>
-              <input id="v-password" name="password" type="password" className="input" autoComplete="current-password" required />
-            </div>
-            <button type="submit" className="btn btn-primary btn-block">Log in</button>
-          </form>
+          <VendorLoginForm />
         </section>
       </main>
     );
@@ -51,10 +42,17 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
             <p className="eyebrow">Vendor station</p>
             <h1 id="vendor-station-title">{station.name}</h1>
           </div>
-          <span className={`badge ${participationOpen ? "badge-success" : "badge-danger"}`}>
-            <span className="dot" />
-            {participationOpen ? "Participation open" : "Participation closed"}
-          </span>
+          <div className="head-actions">
+            <span className={`badge ${participationOpen ? "badge-success" : "badge-danger"}`}>
+              <span className="dot" />
+              {participationOpen ? "Participation open" : "Participation closed"}
+            </span>
+            <form action={logoutVendorAction}>
+              <button type="submit" className="btn btn-danger">
+                Log out
+              </button>
+            </form>
+          </div>
         </div>
         <p className="lead">Signed in as {dashboard.vendor.username}.</p>
         {errorMessage ? <p className="alert alert-danger" role="alert" style={{ marginTop: "1rem" }}>{errorMessage}</p> : null}

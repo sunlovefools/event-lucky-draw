@@ -1239,13 +1239,13 @@ dl.health dd {
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
-      transition: opacity 200ms ease, visibility 0s linear 220ms;
+      transition: opacity 120ms ease, visibility 0s linear 140ms;
     }
     .loading-overlay.is-visible {
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
-      transition: opacity 200ms ease;
+      transition: opacity 120ms ease;
     }
 
     .brand-loader {
@@ -1305,7 +1305,7 @@ dl.health dd {
     }
 
     .page-enter {
-      animation: page-enter 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+      animation: page-enter 180ms cubic-bezier(0.4, 0, 0.2, 1) both;
     }
     @keyframes page-enter {
       from {

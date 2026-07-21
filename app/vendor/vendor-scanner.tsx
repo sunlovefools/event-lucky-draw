@@ -227,15 +227,18 @@ export function VendorScanner({ participationOpen }: { participationOpen: boolea
                 Allow camera access
               </button>
             </div>
-          ) : cameraStarted ? (
-            <div className="qr-reader-wrap">
-              <div id={READER_ID} className="qr-reader camera-enter" />
-            </div>
           ) : (
-            <p className="camera-requesting" aria-live="polite">
-              <span className="camera-requesting__spinner" aria-hidden="true" />
-              Requesting camera permission…
-            </p>
+            <>
+              <div className="qr-reader-wrap">
+                <div id={READER_ID} className={`qr-reader${cameraStarted ? " camera-enter" : ""}`} />
+              </div>
+              {!cameraStarted ? (
+                <p className="camera-requesting" aria-live="polite">
+                  <span className="camera-requesting__spinner" aria-hidden="true" />
+                  Requesting camera permission…
+                </p>
+              ) : null}
+            </>
           )}
 
           {scanError ? <p className="inline-error" style={{ marginTop: "1rem" }}>{scanError}</p> : null}

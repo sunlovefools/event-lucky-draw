@@ -34,3 +34,15 @@ export async function loginVendorAction(formData: FormData) {
   redirect("/vendor");
 }
 
+export async function logoutVendorAction() {
+  const sessionId = await currentVendorSessionId();
+  if (sessionId) {
+    await new SupabaseVendorAuthStore().revokeVendorSession(sessionId, new Date().toISOString());
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.delete({ name: VENDOR_SESSION_COOKIE, path: "/" });
+  cookieStore.delete({ name: VENDOR_SESSION_COOKIE, path: "/vendor" });
+  redirect("/vendor");
+}
+

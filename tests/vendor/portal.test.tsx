@@ -199,6 +199,20 @@ describe("vendor portal UI", () => {
     expect(screen.getByRole("button", { name: "Refresh list" })).toBeInTheDocument();
   });
 
+  it("keeps the QR reader mounted while requesting camera access", () => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: async () => ({}) },
+    });
+
+    render(<VendorScanner participationOpen={true} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+
+    expect(document.getElementById("vendor-qr-reader")).toBeInTheDocument();
+    expect(screen.getByText("Requesting camera permission…")).toBeInTheDocument();
+  });
+
   it("explains when stamping is blocked because participation is closed", () => {
     render(
       <VendorPortal

@@ -1,4 +1,4 @@
-import { loginAdminAction } from "@/app/admin/actions";
+import { AdminLoginForm } from "@/app/admin/admin-login-form";
 import { IconTrophy } from "@/app/admin/icons";
 
 export function LoginScreen({ error }: { error?: string }) {
@@ -13,37 +13,7 @@ export function LoginScreen({ error }: { error?: string }) {
             {error}
           </p>
         ) : null}
-        <form action={loginAdminAction} className="form" style={{ marginTop: "1.25rem" }}>
-          <div className="field">
-            <label className="field-label" htmlFor="a-username">
-              Username
-            </label>
-            <input
-              id="a-username"
-              name="username"
-              className="input"
-              autoComplete="username"
-              required
-              autoFocus
-            />
-          </div>
-          <div className="field">
-            <label className="field-label" htmlFor="a-password">
-              Password
-            </label>
-            <input
-              id="a-password"
-              name="password"
-              type="password"
-              className="input"
-              autoComplete="current-password"
-              required
-            />
-          </div>
-          <button type="submit" className="btn btn-primary btn-block">
-            Log in
-          </button>
-        </form>
+        <AdminLoginForm />
       </section>
       <p className="muted center" style={{ marginTop: "1.5rem", display: "flex", gap: ".5rem", justifyContent: "center", alignItems: "center" }}>
         <IconTrophy size={16} />

@@ -77,6 +77,6 @@ describe("home page", () => {
 
     expect(screen.getByRole("heading", { name: "Event Station Quest Lucky Draw" })).toBeInTheDocument();
     expect(screen.getByText(/collect your stamps/));
-    expect(screen.getByText("Scan your badge QR")).toBeInTheDocument();
+    expect(screen.getByText("Scan Your Conference Badge QR")).toBeInTheDocument();
   });
 });
