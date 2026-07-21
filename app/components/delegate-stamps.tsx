@@ -80,7 +80,7 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
         <h3>Stamps</h3>
         <button type="button" className="btn btn-sm btn-ghost" disabled={pending} onClick={refreshStamps}>
           <RefreshIcon />
-          {pending ? "Refreshing…" : "Refresh stamps"}
+          {pending ? "Refreshing…" : "Refresh Stamps"}
         </button>
       </div>
 
