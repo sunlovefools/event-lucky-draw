@@ -6,6 +6,7 @@ import { getAdminDashboard, SupabaseDashboardStore } from "@/lib/admin/dashboard
 import { createStationAction, editStationAction } from "@/app/admin/actions";
 import { AdminCard, EmptyState } from "@/app/admin/ui";
 import { IconPlus, IconStore, IconList } from "@/app/admin/icons";
+import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -32,15 +33,18 @@ export default async function StationsPage() {
           </h2>
           <form action={createStationAction} className="form">
             <input type="hidden" name="redirectTo" value="/admin/stations" />
-            <label>
-              Name
-              <input name="name" required />
-            </label>
+            <div className="field">
+              <label className="field-label" htmlFor="station-name">
+                Station name
+              </label>
+              <input id="station-name" name="name" className="input" placeholder="Main stage" required />
+              <p className="hint">Use the booth or location name that vendors will recognize immediately.</p>
+            </div>
             <label className="checkbox">
               <input type="checkbox" name="active" value="true" defaultChecked />
-              Active
+              Start as active
             </label>
-            <button type="submit">Create station</button>
+            <PendingSubmitButton className="btn btn-primary" pendingLabel="Creating…">Create station</PendingSubmitButton>
           </form>
         </section>
 
@@ -55,12 +59,17 @@ export default async function StationsPage() {
                   <form action={editStationAction} className="row">
                     <input type="hidden" name="redirectTo" value="/admin/stations" />
                     <input type="hidden" name="stationId" value={st.id} />
-                    <input name="name" defaultValue={st.name} required />
+                    <div className="field" style={{ flex: "1 1 240px" }}>
+                      <label className="field-label" htmlFor={`station-${st.id}`}>
+                        Station name
+                      </label>
+                      <input id={`station-${st.id}`} name="name" className="input" defaultValue={st.name} required />
+                    </div>
                     <label className="checkbox">
                       <input type="checkbox" name="active" value="true" defaultChecked={st.active} />
                       Active
                     </label>
-                    <button type="submit">Save</button>
+                    <PendingSubmitButton className="btn btn-primary" pendingLabel="Saving…">Save changes</PendingSubmitButton>
                   </form>
                   <span className="muted">
                     {linkedStationIds.has(st.id) ? "Linked to a vendor account" : "Not linked to any vendor yet"}

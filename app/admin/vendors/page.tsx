@@ -7,6 +7,7 @@ import { type VendorDeviceSession } from "@/lib/auth/vendor-auth";
 import { createVendorAction, editVendorAction, revokeVendorSessionAction } from "@/app/admin/actions";
 import { AdminCard, EmptyState, formatTime } from "@/app/admin/ui";
 import { IconPlus, IconStore, IconDevices, IconScan, IconIdCard, IconList } from "@/app/admin/icons";
+import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,11 @@ function StationSelect({
   value: string | null;
 }) {
   return (
-    <label>
-      Station
-      <select name="stationId" required defaultValue={value ?? ""}>
+    <div className="field">
+      <label className="field-label" htmlFor="vendor-station">
+        Station
+      </label>
+      <select id="vendor-station" name="stationId" className="select" required defaultValue={value ?? ""}>
         <option value="" disabled>
           Select a station…
         </option>
@@ -30,7 +33,8 @@ function StationSelect({
           </option>
         ))}
       </select>
-    </label>
+      <p className="hint">Only unassigned stations appear here, so every vendor stays linked one-to-one.</p>
+    </div>
   );
 }
 
@@ -72,20 +76,24 @@ export default async function VendorsPage() {
           ) : (
             <form action={createVendorAction} className="form">
               <input type="hidden" name="redirectTo" value="/admin/vendors" />
-              <label>
-                Username
-                <input name="username" required />
-              </label>
-              <label>
-                Password
-                <input name="password" type="password" required />
-              </label>
+              <div className="field">
+                <label className="field-label" htmlFor="vendor-username">
+                  Username
+                </label>
+                <input id="vendor-username" name="username" className="input" placeholder="vendor01" required />
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="vendor-password">
+                  Password
+                </label>
+                <input id="vendor-password" name="password" type="password" className="input" placeholder="Create a strong password" required />
+              </div>
               <StationSelect stations={availableStations} value={null} />
               <label className="checkbox">
                 <input type="checkbox" name="active" value="true" defaultChecked />
                 Active
               </label>
-              <button type="submit">Create account</button>
+              <PendingSubmitButton className="btn btn-primary" pendingLabel="Creating…">Create account</PendingSubmitButton>
             </form>
           )}
         </section>
@@ -126,9 +134,9 @@ export default async function VendorsPage() {
                             <form action={revokeVendorSessionAction}>
                               <input type="hidden" name="redirectTo" value="/admin/vendors" />
                               <input type="hidden" name="sessionId" value={s.id} />
-                              <button type="submit" className="btn btn-ghost btn-sm">
+                              <PendingSubmitButton className="btn btn-ghost btn-sm" pendingLabel="Signing out…">
                                 Sign out device
-                              </button>
+                              </PendingSubmitButton>
                             </form>
                           </li>
                         ))}
@@ -142,15 +150,17 @@ export default async function VendorsPage() {
                           <input type="hidden" name="redirectTo" value="/admin/vendors" />
                           <input type="hidden" name="vendorId" value={v.id} />
                           <input type="hidden" name="stationId" value={v.stationId} />
-                          <label>
-                            Username
-                            <input name="username" defaultValue={v.username} required />
-                          </label>
+                          <div className="field">
+                            <label className="field-label" htmlFor={`vendor-${v.id}-username`}>
+                              Username
+                            </label>
+                            <input id={`vendor-${v.id}-username`} name="username" className="input" defaultValue={v.username} required />
+                          </div>
                           <label className="checkbox">
                             <input type="checkbox" name="active" value="true" defaultChecked={v.active} />
                             Active
                           </label>
-                          <button type="submit">Save</button>
+                          <PendingSubmitButton className="btn btn-primary" pendingLabel="Saving…">Save changes</PendingSubmitButton>
                         </form>
                       </div>
                     </details>

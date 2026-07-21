@@ -4,6 +4,7 @@ import { setParticipationAction, drawLuckyWinnerAction, resetDrawRoundAction } f
 import type { AdminDashboardResult } from "@/lib/admin/dashboard";
 import type { HealthStatus } from "@/lib/health";
 import { AdminCard, formatTime } from "@/app/admin/ui";
+import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 import {
   IconPower,
   IconActivity,
@@ -77,10 +78,10 @@ export function AdminOverview({
           <form action={setParticipationAction}>
             <input type="hidden" name="open" value={nextOpenValue} />
             <input type="hidden" name="redirectTo" value="/admin" />
-            <button type="submit" className={participation.open ? "btn btn-danger" : "btn btn-accent"}>
+            <PendingSubmitButton className={participation.open ? "btn btn-danger" : "btn btn-accent"} pendingLabel="Updating…">
               <IconPower size={18} />
               {buttonLabel}
-            </button>
+            </PendingSubmitButton>
           </form>
         </div>
       </AdminCard>
@@ -163,17 +164,17 @@ export function AdminOverview({
         <div className="row" style={{ gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
           <form action={drawLuckyWinnerAction}>
             <input type="hidden" name="redirectTo" value="/admin" />
-            <button type="submit" className="btn btn-accent">
+            <PendingSubmitButton className="btn btn-accent" pendingLabel="Drawing…">
               <IconTrophy size={18} />
               Draw winner
-            </button>
+            </PendingSubmitButton>
           </form>
           <form action={resetDrawRoundAction}>
             <input type="hidden" name="redirectTo" value="/admin" />
-            <button type="submit" className="btn btn-ghost">
+            <PendingSubmitButton className="btn btn-ghost" pendingLabel="Resetting…">
               <IconRefresh size={18} />
               Reset winners
-            </button>
+            </PendingSubmitButton>
           </form>
         </div>
       </AdminCard>

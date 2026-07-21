@@ -1,11 +1,10 @@
 import { BrandLoader } from "@/app/components/brand-loader";
 
-// Admin route-level loading fallback. Matches the delegate experience so
-// section-to-section navigation keeps the branded loading screen in place.
+// Keep the admin chrome (sidenav + header) visible during admin navigations.
 export default function Loading() {
   return (
-    <main className="shell shell-wide" id="main" style={{ minHeight: "70vh", display: "grid", placeItems: "center" }}>
+    <div className="admin-page-loading" role="status" aria-live="polite">
       <BrandLoader message="Loading admin…" />
-    </main>
+    </div>
   );
 }

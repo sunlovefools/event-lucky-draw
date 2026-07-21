@@ -525,6 +525,28 @@
   outline-offset: 2px;
 }
 
+.btn-spinner {
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  display: inline-block;
+  animation: admin-spin 700ms linear infinite;
+  flex: 0 0 auto;
+}
+.is-pending {
+  pointer-events: none;
+}
+.admin-page-loading {
+  min-height: 45vh;
+  display: grid;
+  place-items: center;
+}
+@keyframes admin-spin {
+  to { transform: rotate(360deg); }
+}
+
 .participant-name {
   display: flex;
   align-items: center;

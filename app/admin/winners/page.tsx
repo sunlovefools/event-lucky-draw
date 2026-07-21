@@ -7,6 +7,7 @@ import { getAdminDashboard, SupabaseDashboardStore } from "@/lib/admin/dashboard
 import { resetDrawRoundAction } from "@/app/admin/actions";
 import { AdminCard, EmptyState, formatTime } from "@/app/admin/ui";
 import { IconTrophy, IconCrown, IconRefresh } from "@/app/admin/icons";
+import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
 export default async function WinnersPage() {
   const cookieStore = await cookies();
@@ -39,10 +40,10 @@ export default async function WinnersPage() {
           <p className="participation-banner__meta">Winners remain excluded from future draws until reset.</p>
           <form action={resetDrawRoundAction}>
             <input type="hidden" name="redirectTo" value="/admin/winners" />
-            <button type="submit" className="icon-btn icon-btn--danger">
+            <PendingSubmitButton className="icon-btn icon-btn--danger" pendingLabel="Resetting…">
               <IconRefresh size={16} />
               Reset winners
-            </button>
+            </PendingSubmitButton>
           </form>
         </div>
 

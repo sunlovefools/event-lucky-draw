@@ -6,6 +6,7 @@ import { ADMIN_SESSION_COOKIE } from "@/app/admin/session";
 import { getAdminDashboard, SupabaseDashboardStore } from "@/lib/admin/dashboard";
 import { AdminCard, EmptyState, Pagination, formatTime } from "@/app/admin/ui";
 import { IconScan, IconSearch, IconFilter, IconList } from "@/app/admin/icons";
+import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
 const PAGE_SIZE = 25;
 
@@ -86,9 +87,9 @@ export default async function ScanAuditPage({
               ))}
             </select>
           </div>
-          <button type="submit" className="btn btn-primary">
+          <PendingSubmitButton className="btn btn-primary" pendingLabel="Applying…">
             Apply
-          </button>
+          </PendingSubmitButton>
           <Link href="/admin/scan-audit" className="icon-btn">
             Clear
           </Link>

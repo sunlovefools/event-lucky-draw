@@ -11,6 +11,7 @@ import {
 import type { DelegateDrawStatus } from "@/lib/admin/participants";
 import { AdminCard, EmptyState, Pagination } from "@/app/admin/ui";
 import { IconUsers, IconSearch, IconFilter, IconCheck, IconX, IconPencil, IconList } from "@/app/admin/icons";
+import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
 const PAGE_SIZE = 20;
 
@@ -143,9 +144,9 @@ export default async function ParticipantsPage({
               ))}
             </select>
           </div>
-          <button type="submit" className="btn btn-primary">
+          <PendingSubmitButton className="btn btn-primary" pendingLabel="Applying…">
             Apply
-          </button>
+          </PendingSubmitButton>
           <Link href="/admin/participants" className="icon-btn">
             Clear
           </Link>
@@ -211,19 +212,19 @@ export default async function ParticipantsPage({
                               <input type="hidden" name="delegateId" value={p.id} />
                               <input type="hidden" name="drawStatus" value="manual_include" />
                               <input type="hidden" name="redirectTo" value={redirectTo} />
-                              <button type="submit" className="icon-btn" title="Manually include in the draw">
+                              <PendingSubmitButton className="icon-btn" title="Manually include in the draw" pendingLabel="Including…">
                                 <IconCheck size={16} />
                                 Include
-                              </button>
+                              </PendingSubmitButton>
                             </form>
                             <form action={setDelegateDrawStatusAction}>
                               <input type="hidden" name="delegateId" value={p.id} />
                               <input type="hidden" name="drawStatus" value="disqualified" />
                               <input type="hidden" name="redirectTo" value={redirectTo} />
-                              <button type="submit" className="icon-btn icon-btn--danger" title="Disqualify from the draw">
+                              <PendingSubmitButton className="icon-btn icon-btn--danger" title="Disqualify from the draw" pendingLabel="Disqualifying…">
                                 <IconX size={16} />
                                 Disqualify
-                              </button>
+                              </PendingSubmitButton>
                             </form>
                             <details className="disclosure" style={{ flex: "1 1 120px" }}>
                               <summary>
@@ -239,9 +240,9 @@ export default async function ParticipantsPage({
                                     </label>
                                     <input id={`rename-${p.id}`} name="fullName" className="input" defaultValue={p.fullName} required />
                                   </div>
-                                  <button type="submit" className="btn btn-ghost btn-sm">
+                                  <PendingSubmitButton className="btn btn-ghost btn-sm" pendingLabel="Saving…">
                                     Save name
-                                  </button>
+                                  </PendingSubmitButton>
                                 </form>
                               </div>
                             </details>
