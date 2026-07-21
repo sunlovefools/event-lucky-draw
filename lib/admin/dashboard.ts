@@ -1,13 +1,13 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { requireAdminSession, type AdminSessionStore, SupabaseAdminAuthStore } from "@/lib/auth/admin-auth";
+import { type VendorDeviceSession } from "@/lib/auth/vendor-auth";
 import { stationFromRow, type Station } from "@/lib/shared/station";
 import { vendorAccountFromRow, type VendorAccount } from "@/lib/shared/vendor-account";
-import { winnerHistoryFromRow, type AdminWinnerHistoryEntry } from "@/lib/shared/winner-history";
 import { type AdminParticipant } from "@/lib/admin/participants";
 import { SupabaseStationsStore } from "@/lib/admin/stations";
 import { SupabaseVendorsStore } from "@/lib/admin/vendors";
 import { SupabaseParticipantsStore } from "@/lib/admin/participants";
-import { SupabaseDrawStore } from "@/lib/admin/draw";
+import { SupabaseDrawStore, type DrawRoundView } from "@/lib/admin/draw";
 
 export type ParticipationState = {
   open: boolean;
@@ -29,7 +29,6 @@ export type AdminScanAuditLog = {
   stationId: string | null;
   stationName: string | null;
   scannedAt: string;
-  qrTokenId: string | null;
   qrToken: string;
   result: string;
   consumed: boolean;
@@ -43,10 +42,11 @@ export type AdminDashboardResult =
       participation: ParticipationState;
       stations: Station[];
       vendorAccounts: VendorAccount[];
+      vendorSessions?: VendorDeviceSession[];
       participants: AdminParticipant[];
       stationSummaries: AdminStationSummary[];
       scanAuditLogs: AdminScanAuditLog[];
-      winnerHistory: AdminWinnerHistoryEntry[];
+      drawRounds: DrawRoundView[];
     };
 
 // The dashboard aggregates reads from every admin feature store plus the
@@ -56,10 +56,11 @@ export type DashboardStore = AdminSessionStore & {
   updateParticipationState(open: boolean, adminId: string, updatedAt: string): Promise<ParticipationState>;
   listStations(): Promise<Station[]>;
   listVendorAccounts(): Promise<VendorAccount[]>;
+  listVendorSessions(nowIso: string): Promise<VendorDeviceSession[]>;
   listParticipants(): Promise<AdminParticipant[]>;
   listStationSummaries(): Promise<AdminStationSummary[]>;
   listScanAuditLogs(): Promise<AdminScanAuditLog[]>;
-  listWinnerHistory(): Promise<AdminWinnerHistoryEntry[]>;
+  listDrawRounds(): Promise<DrawRoundView[]>;
 };
 
 export async function getAdminDashboard({
@@ -76,14 +77,15 @@ export async function getAdminDashboard({
     return { authorized: false };
   }
 
-  const [participation, stations, vendorAccounts, participants, stationSummaries, scanAuditLogs, winnerHistory] = await Promise.all([
+  const [participation, stations, vendorAccounts, vendorSessions, participants, stationSummaries, scanAuditLogs, drawRounds] = await Promise.all([
     store.readParticipationState(),
     store.listStations(),
     store.listVendorAccounts(),
+    store.listVendorSessions(now().toISOString()),
     store.listParticipants(),
     store.listStationSummaries(),
     store.listScanAuditLogs(),
-    store.listWinnerHistory(),
+    store.listDrawRounds(),
   ]);
 
   return {
@@ -92,10 +94,11 @@ export async function getAdminDashboard({
     participation,
     stations,
     vendorAccounts,
+    vendorSessions,
     participants,
     stationSummaries,
     scanAuditLogs,
-    winnerHistory,
+    drawRounds,
   };
 }
 
@@ -144,7 +147,6 @@ type ScanAuditLogRpcRow = {
   station_id: string | null;
   station_name: string | null;
   scanned_at: string;
-  qr_token_id: string | null;
   qr_token: string;
   result: string;
   consumed: boolean;
@@ -167,7 +169,6 @@ function scanAuditLogFromRpcRow(row: ScanAuditLogRpcRow): AdminScanAuditLog {
     stationId: row.station_id,
     stationName: row.station_name,
     scannedAt: row.scanned_at,
-    qrTokenId: row.qr_token_id,
     qrToken: row.qr_token,
     result: row.result,
     consumed: row.consumed,
@@ -234,6 +235,25 @@ export class SupabaseDashboardStore implements DashboardStore {
     return this.vendors.listVendorAccounts();
   }
 
+  async listVendorSessions(nowIso: string): Promise<VendorDeviceSession[]> {
+    const { data, error } = await this.supabase
+      .from("vendor_sessions")
+      .select("id, vendor_id, created_at, expires_at")
+      .gt("expires_at", nowIso)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      vendorId: row.vendor_id,
+      createdAt: row.created_at,
+      expiresAt: row.expires_at,
+    }));
+  }
+
   listParticipants() {
     return this.participants.listParticipants();
   }
@@ -258,7 +278,7 @@ export class SupabaseDashboardStore implements DashboardStore {
     return (data ?? []).map(scanAuditLogFromRpcRow);
   }
 
-  listWinnerHistory() {
-    return this.draw.listWinnerHistory();
+  listDrawRounds() {
+    return this.draw.listDrawRounds();
   }
 }

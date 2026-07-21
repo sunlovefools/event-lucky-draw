@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
-// Next.js app-router client components (e.g. AutoRefresh) call useRouter at
+// Next.js app-router client components (e.g. RefreshButton) call useRouter at
 // render time. The jsdom test environment has no router context, so we stub
 // next/navigation here for the whole suite.
 vi.mock("next/navigation", () => ({

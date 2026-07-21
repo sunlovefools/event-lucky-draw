@@ -116,4 +116,82 @@ describe("vendor account management", () => {
     expect(result).toEqual({ ok: false, error: "Vendor account must be assigned to exactly one station." });
     expect(created).toBe(false);
   });
+
+  it("allows multiple vendor accounts, each linked to a different station", async () => {
+    const created: Array<{ username: string; stationId: string }> = [];
+    const store = createStore({
+      async findValidSession() {
+        return { id: "session-1", adminId: "admin-1", username: "organizer" };
+      },
+      async listVendorAccounts() {
+        return [
+          { id: "vendor-1", username: "ai-vendor", stationId: "station-1", stationName: "AI Booth", active: true },
+        ];
+      },
+      async createVendorAccount(vendor) {
+        created.push({ username: vendor.username, stationId: vendor.stationId });
+        return { id: "vendor-2", username: vendor.username, stationId: vendor.stationId, stationName: "Cloud Booth", active: vendor.active };
+      },
+    });
+
+    const result = await createVendorAccount({
+      store,
+      sessionId: "session-1",
+      username: "cloud-vendor",
+      password: "station-secret",
+      stationId: "station-2",
+      active: true,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      vendorAccount: { id: "vendor-2", username: "cloud-vendor", stationId: "station-2", stationName: "Cloud Booth", active: true },
+    });
+    expect(created).toEqual([{ username: "cloud-vendor", stationId: "station-2" }]);
+  });
+
+  it("prevents two vendors from sharing the same station", async () => {
+    const store = createStore({
+      async findValidSession() {
+        return { id: "session-1", adminId: "admin-1", username: "organizer" };
+      },
+      async listVendorAccounts() {
+        return [
+          { id: "vendor-1", username: "ai-vendor", stationId: "station-1", stationName: "AI Booth", active: true },
+        ];
+      },
+    });
+
+    const result = await createVendorAccount({
+      store,
+      sessionId: "session-1",
+      username: "second-vendor",
+      password: "station-secret",
+      stationId: "station-1",
+      active: true,
+    });
+
+    expect(result).toEqual({ ok: false, error: "That station is already linked to another vendor account." });
+  });
+
+  it("lists active device sessions and can revoke one", async () => {
+    const revoked: string[] = [];
+    const store = createStore({
+      async listActiveVendorSessions(vendorId, nowIso) {
+        expect(vendorId).toBe("vendor-1");
+        return [
+          { id: "sess-1", vendorId: "vendor-1", createdAt: "2025-01-01T00:00:00.000Z", expiresAt: "2025-01-02T00:00:00.000Z" },
+          { id: "sess-2", vendorId: "vendor-1", createdAt: "2025-01-01T00:05:00.000Z", expiresAt: "2025-01-02T00:00:00.000Z" },
+        ];
+      },
+      async revokeVendorSession(sessionId, nowIso) {
+        revoked.push(sessionId);
+      },
+    });
+
+    const sessions = await store.listActiveVendorSessions("vendor-1", "2025-01-01T00:00:00.000Z");
+    expect(sessions).toHaveLength(2);
+    await store.revokeVendorSession("sess-1", "2025-01-01T12:00:00.000Z");
+    expect(revoked).toEqual(["sess-1"]);
+  });
 });

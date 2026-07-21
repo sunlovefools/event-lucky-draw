@@ -246,6 +246,12 @@ h3 {
 .section-head h2 {
   font-size: clamp(1.25rem, 3vw, 1.6rem);
 }
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
 .divider {
   height: 1px;
   background: var(--color-border);
@@ -1081,27 +1087,51 @@ dl.health dd {
     .brand-loader {
       display: grid;
       justify-items: center;
-      gap: 1rem;
+      gap: 1.4rem;
       text-align: center;
     }
     .brand-loader__spinner {
-      width: 56px;
-      height: 56px;
+      position: relative;
+      width: 88px;
+      height: 88px;
       border-radius: 50%;
-      background: conic-gradient(from 0deg, var(--color-primary), var(--color-accent), var(--color-primary));
-      -webkit-mask: radial-gradient(farthest-side, transparent 62%, #000 64%);
-      mask: radial-gradient(farthest-side, transparent 62%, #000 64%);
-      animation: brand-spin 900ms linear infinite;
+    }
+    /* Faint static track so the rotating arc clearly reads as a spinner */
+    .brand-loader__spinner::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: var(--color-surface-2);
+      -webkit-mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
+      mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
+    }
+    /* Thick, obviously-rotating gradient arc */
+    .brand-loader__spinner::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: conic-gradient(
+        from 0deg,
+        transparent 0deg,
+        var(--color-primary) 45deg,
+        var(--color-accent) 130deg,
+        transparent 165deg
+      );
+      -webkit-mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
+      mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
+      animation: brand-spin 800ms linear infinite;
     }
     .brand-loader__name {
       font-family: var(--font-display);
-      font-size: 1.25rem;
+      font-size: 1.5rem;
       color: var(--color-primary-strong);
       margin: 0;
     }
     .brand-loader__msg {
       color: var(--color-muted);
-      font-size: 0.95rem;
+      font-size: 1.05rem;
       margin: 0;
     }
     @keyframes brand-spin {
@@ -1116,17 +1146,63 @@ dl.health dd {
     @keyframes page-enter {
       from {
         opacity: 0;
-        transform: translateY(8px);
       }
       to {
         opacity: 1;
-        transform: translateY(0);
       }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .brand-loader__spinner {
+      .brand-loader__spinner::after {
         animation: none !important;
-        background: conic-gradient(from 0deg, var(--color-primary) 0 25%, var(--color-border) 25% 100%) !important;
+        background: conic-gradient(
+          from 0deg,
+          var(--color-primary) 0 25%,
+          var(--color-border) 25% 100%
+        ) !important;
+      }
+    }
+
+    /* ============================================================ REGISTER NAME STEP */
+    .register-name-step {
+      display: grid;
+      gap: var(--space-4);
+      margin-top: var(--space-4);
+    }
+    .register-code-readout {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.4rem 0.75rem;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface-2);
+    }
+    .register-code-readout__label {
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+    }
+    .register-code-readout__value {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      color: var(--color-foreground);
+      letter-spacing: 0.02em;
+    }
+    /* Name field pops out below the captured code on the same page. */
+    .register-name-pop {
+      animation: name-pop 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
+    @keyframes name-pop {
+      from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
       }
     }

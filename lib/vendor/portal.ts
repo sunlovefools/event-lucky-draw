@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { readParticipationOpen as queryParticipationOpen } from "@/lib/participation";
 import {
@@ -7,7 +5,10 @@ import {
   type VendorSessionStore,
   SupabaseVendorAuthStore,
   type VendorStation,
+  type ValidVendorSession,
 } from "@/lib/auth/vendor-auth";
+import { type Delegate, extractRegistrationNumberFromBadgePayload } from "@/lib/delegate";
+import { delegateFromRow } from "@/lib/delegate-session";
 
 export type VendorDashboardResult =
   | { authorized: false }
@@ -16,23 +17,8 @@ export type VendorDashboardResult =
       vendor: { id: string; username: string };
       station: VendorStation;
       participationOpen: boolean;
-      currentQr: StationQr | null;
       scanHistory: StationScanHistoryEntry[];
     };
-
-export type StationQrStatus = "active" | "consumed" | "expired" | "invalidated";
-
-export type StationQr = {
-  id: string;
-  token: string;
-  stationId: string;
-  url: string;
-  expiresAt: string;
-  invalidatedAt: string | null;
-  consumedAt: string | null;
-  status: StationQrStatus;
-  scannedByFullName?: string;
-};
 
 export type StationScanHistoryEntry = {
   id: string;
@@ -42,15 +28,34 @@ export type StationScanHistoryEntry = {
   collectedAt: string;
 };
 
-export type VendorPortalStore = VendorSessionStore & {
-  readParticipationOpen(): Promise<boolean>;
-  findCurrentQrForStation(stationId: string, nowIso: string): Promise<StationQr | null>;
-  listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]>;
-  invalidateCurrentQrForStation(stationId: string, invalidatedAt: string): Promise<void>;
-  createStationQr(qr: { stationId: string; token: string; expiresAt: string }): Promise<StationQr>;
+export type VendorScanDelegateStamp = {
+  id: string;
+  delegateId: string;
+  stationId: string;
+  collectedAt: string;
 };
 
-const STATION_QR_DURATION_MS = 2 * 60 * 1000;
+export type VendorScanAuditLogInput = {
+  delegateId: string;
+  stationId: string;
+  qrToken: string;
+  result: string;
+  consumed: boolean;
+  scannedAt: string;
+};
+
+export type VendorScanResult =
+  | { ok: true; delegate: { fullName: string }; duplicate: boolean; message: string }
+  | { ok: false; reason: "not-registered" | "invalid" | "closed"; error: string };
+
+export type VendorPortalStore = VendorSessionStore & {
+  readParticipationOpen(): Promise<boolean>;
+  listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]>;
+  findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null>;
+  hasDelegateStamp(delegateId: string, stationId: string): Promise<boolean>;
+  createDelegateStamp(delegateId: string, stationId: string, collectedAt: string): Promise<VendorScanDelegateStamp>;
+  recordScanAuditLog(log: VendorScanAuditLogInput): Promise<void>;
+};
 
 export async function getVendorDashboard({
   store,
@@ -67,9 +72,8 @@ export async function getVendorDashboard({
     return { authorized: false };
   }
 
-  const [participationOpen, currentQr, scanHistory] = await Promise.all([
+  const [participationOpen, scanHistory] = await Promise.all([
     store.readParticipationOpen(),
-    store.findCurrentQrForStation(session.vendor.station.id, nowIso),
     store.listStationScanHistory(session.vendor.station.id),
   ]);
 
@@ -78,53 +82,84 @@ export async function getVendorDashboard({
     vendor: { id: session.vendor.id, username: session.vendor.username },
     station: session.vendor.station,
     participationOpen,
-    currentQr,
     scanHistory,
   };
 }
 
-export async function generateStationQr({
+export async function collectStampFromVendorScan({
   store,
-  sessionId,
+  session,
+  badgePayload,
   now = () => new Date(),
-  newToken = randomUUID,
 }: {
   store: VendorPortalStore;
-  sessionId?: string | null;
+  session: ValidVendorSession;
+  badgePayload: string;
   now?: () => Date;
-  newToken?: () => string;
-}): Promise<{ ok: true; qr: StationQr } | { ok: false; error: string }> {
-  const generatedAt = now();
-  const generatedAtIso = generatedAt.toISOString();
-  const session = await requireVendorSession({ store, sessionId, nowIso: generatedAtIso });
-  if (!session) {
-    return { ok: false, error: "Vendor login required." };
-  }
+}): Promise<VendorScanResult> {
+  const scannedAt = now().toISOString();
 
   const participationOpen = await store.readParticipationOpen();
   if (!participationOpen) {
-    return { ok: false, error: "Participation is closed." };
+    return { ok: false, reason: "closed", error: "Participation is closed." };
   }
 
-  await store.invalidateCurrentQrForStation(session.vendor.station.id, generatedAtIso);
-  const expiresAt = new Date(generatedAt.getTime() + STATION_QR_DURATION_MS).toISOString();
+  const registrationNumber = extractRegistrationNumberFromBadgePayload(badgePayload);
+  if (!registrationNumber) {
+    return { ok: false, reason: "invalid", error: "This QR isn't a valid delegate badge." };
+  }
+
+  const delegate = await store.findDelegateByRegistrationNumber(registrationNumber);
+  if (!delegate) {
+    return { ok: false, reason: "not-registered", error: "Delegate not registered — ask them to register first." };
+  }
+
+  const stationId = session.vendor.station.id;
+  const alreadyStamped = await store.hasDelegateStamp(delegate.id, stationId);
+  if (alreadyStamped) {
+    await store.recordScanAuditLog({
+      delegateId: delegate.id,
+      stationId,
+      qrToken: badgePayload.trim(),
+      result: "duplicate",
+      consumed: true,
+      scannedAt,
+    });
+    return {
+      ok: true,
+      delegate: { fullName: delegate.fullName },
+      duplicate: true,
+      message: `${delegate.fullName} was already collected at this station.`,
+    };
+  }
+
+  await store.createDelegateStamp(delegate.id, stationId, scannedAt);
+  await store.recordScanAuditLog({
+    delegateId: delegate.id,
+    stationId,
+    qrToken: badgePayload.trim(),
+    result: "success",
+    consumed: true,
+    scannedAt,
+  });
 
   return {
     ok: true,
-    qr: await store.createStationQr({ stationId: session.vendor.station.id, token: newToken(), expiresAt }),
+    delegate: { fullName: delegate.fullName },
+    duplicate: false,
+    message: `Successful Stamped ${delegate.fullName} QR! Ask him/her to refresh their page to look at the stamp!`,
   };
 }
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
-type StationQrRow = {
+type DelegateRow = { id: string; registration_number: string; full_name: string };
+
+type VendorScanDelegateStampRow = {
   id: string;
-  token: string;
+  delegate_id: string;
   station_id: string;
-  expires_at: string;
-  invalidated_at: string | null;
-  consumed_at: string | null;
-  delegate_station_stamps?: { delegates?: { full_name: string } | { full_name: string }[] | null } | Array<{ delegates?: { full_name: string } | { full_name: string }[] | null }> | null;
+  collected_at: string;
 };
 
 type StationScanHistoryRow = {
@@ -135,41 +170,8 @@ type StationScanHistoryRow = {
   stations?: { name: string } | { name: string }[] | null;
 };
 
-function stationQrStatus(row: StationQrRow, nowIso?: string): StationQrStatus {
-  if (row.consumed_at) {
-    return "consumed";
-  }
-
-  if (row.invalidated_at) {
-    return "invalidated";
-  }
-
-  if (nowIso && row.expires_at <= nowIso) {
-    return "expired";
-  }
-
-  return "active";
-}
-
-function scannedByFullNameFromRow(row: StationQrRow) {
-  const stamp = Array.isArray(row.delegate_station_stamps) ? row.delegate_station_stamps[0] : row.delegate_station_stamps;
-  const delegate = Array.isArray(stamp?.delegates) ? stamp?.delegates[0] : stamp?.delegates;
-  return delegate?.full_name;
-}
-
-function stationQrFromRow(row: StationQrRow, nowIso?: string): StationQr {
-  const scannedByFullName = scannedByFullNameFromRow(row);
-  return {
-    id: row.id,
-    token: row.token,
-    stationId: row.station_id,
-    url: `/stamp/${row.token}`,
-    expiresAt: row.expires_at,
-    invalidatedAt: row.invalidated_at,
-    consumedAt: row.consumed_at,
-    status: stationQrStatus(row, nowIso),
-    ...(scannedByFullName ? { scannedByFullName } : {}),
-  };
+function stampFromRow(row: VendorScanDelegateStampRow): VendorScanDelegateStamp {
+  return { id: row.id, delegateId: row.delegate_id, stationId: row.station_id, collectedAt: row.collected_at };
 }
 
 function scanHistoryFromRow(row: StationScanHistoryRow): StationScanHistoryEntry {
@@ -197,22 +199,6 @@ export class SupabaseVendorStore implements VendorPortalStore {
     return queryParticipationOpen(this.supabase);
   }
 
-  async findCurrentQrForStation(stationId: string, nowIso: string): Promise<StationQr | null> {
-    const { data, error } = await this.supabase
-      .from("station_qr_tokens")
-      .select("id, token, station_id, expires_at, invalidated_at, consumed_at, delegate_station_stamps(delegates(full_name))")
-      .eq("station_id", stationId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<StationQrRow>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return data ? stationQrFromRow(data, nowIso) : null;
-  }
-
   async listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]> {
     const { data, error } = await this.supabase
       .from("delegate_station_stamps")
@@ -227,30 +213,61 @@ export class SupabaseVendorStore implements VendorPortalStore {
     return (data ?? []).map(scanHistoryFromRow);
   }
 
-  async invalidateCurrentQrForStation(stationId: string, invalidatedAt: string): Promise<void> {
-    const { error } = await this.supabase
-      .from("station_qr_tokens")
-      .update({ invalidated_at: invalidatedAt })
-      .eq("station_id", stationId)
-      .is("invalidated_at", null)
-      .is("consumed_at", null);
+  async findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null> {
+    const { data, error } = await this.supabase
+      .from("delegates")
+      .select("id, registration_number, full_name")
+      .eq("registration_number", registrationNumber)
+      .maybeSingle<DelegateRow>();
 
     if (error) {
       throw new Error(error.message);
     }
+
+    return data ? delegateFromRow(data) : null;
   }
 
-  async createStationQr(qr: { stationId: string; token: string; expiresAt: string }): Promise<StationQr> {
+  async hasDelegateStamp(delegateId: string, stationId: string): Promise<boolean> {
     const { data, error } = await this.supabase
-      .from("station_qr_tokens")
-      .insert({ station_id: qr.stationId, token: qr.token, expires_at: qr.expiresAt })
-      .select("id, token, station_id, expires_at, invalidated_at, consumed_at")
-      .single<StationQrRow>();
+      .from("delegate_station_stamps")
+      .select("id")
+      .eq("delegate_id", delegateId)
+      .eq("station_id", stationId)
+      .maybeSingle<{ id: string }>();
 
     if (error) {
       throw new Error(error.message);
     }
 
-    return stationQrFromRow(data);
+    return Boolean(data);
+  }
+
+  async createDelegateStamp(delegateId: string, stationId: string, collectedAt: string): Promise<VendorScanDelegateStamp> {
+    const { data, error } = await this.supabase
+      .from("delegate_station_stamps")
+      .insert({ delegate_id: delegateId, station_id: stationId, collected_at: collectedAt })
+      .select("id, delegate_id, station_id, collected_at")
+      .single<VendorScanDelegateStampRow>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return stampFromRow(data);
+  }
+
+  async recordScanAuditLog(log: VendorScanAuditLogInput): Promise<void> {
+    const { error } = await this.supabase.from("scan_audit_logs").insert({
+      delegate_id: log.delegateId,
+      station_id: log.stationId,
+      qr_token: log.qrToken,
+      result: log.result,
+      consumed: log.consumed,
+      scanned_at: log.scannedAt,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 }

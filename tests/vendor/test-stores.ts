@@ -11,31 +11,29 @@ export function createStore(overrides: Partial<VendorTestStore> = {}): VendorTes
     async createVendorSession(vendorId, expiresAt) {
       return { id: "vendor-session-1", vendorId, expiresAt };
     },
+    async listActiveVendorSessions() {
+      return [];
+    },
+    async revokeVendorSession() {},
     async findValidVendorSession() {
       return null;
     },
     async readParticipationOpen() {
       return true;
     },
-    async findCurrentQrForStation() {
-      return null;
-    },
     async listStationScanHistory() {
       return [];
     },
-    async invalidateCurrentQrForStation() {},
-    async createStationQr(qr) {
-      return {
-        id: "qr-1",
-        token: qr.token,
-        stationId: qr.stationId,
-        url: `/stamp/${qr.token}`,
-        expiresAt: qr.expiresAt,
-        invalidatedAt: null,
-        consumedAt: null,
-        status: "active",
-      };
+    async findDelegateByRegistrationNumber() {
+      return null;
     },
+    async hasDelegateStamp() {
+      return false;
+    },
+    async createDelegateStamp(delegateId, stationId, collectedAt) {
+      return { id: "stamp-1", delegateId, stationId, collectedAt };
+    },
+    async recordScanAuditLog() {},
     ...overrides,
   };
 

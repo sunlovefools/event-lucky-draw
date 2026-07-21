@@ -195,7 +195,7 @@ export class SupabaseFinalSurveyStore implements FinalSurveyStore {
   async markDelegateEligible(delegateId: string, eligibleAt: string): Promise<EligibleDelegate> {
     const { data, error } = await this.supabase
       .from("delegates")
-      .update({ eligible_at: eligibleAt, draw_status: "eligible" })
+      .update({ eligible_at: eligibleAt, })
       .eq("id", delegateId)
       .select("id, eligible_at, draw_status")
       .single<{ id: string; eligible_at: string; draw_status: string }>();

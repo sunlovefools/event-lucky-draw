@@ -2,7 +2,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { normalizeUsername } from "@/lib/shared/normalize";
 import { requireAdminSession, type AdminSessionStore, SupabaseAdminAuthStore } from "@/lib/auth/admin-auth";
 
-export type DelegateDrawStatus = "not_eligible" | "eligible" | "manual_include" | "disqualified" | "winner" | string;
+export type DelegateDrawStatus = "auto" | "eligible" | "excluded" | string;
 
 export type AdminParticipant = {
   id: string;

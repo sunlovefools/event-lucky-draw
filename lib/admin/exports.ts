@@ -29,7 +29,7 @@ export type SurveyResponseExportRow = {
 };
 
 export type WinnerHistoryExportRow = {
-  drawLabel: string;
+  roundNumber: number;
   fullName: string;
   registrationNumber: string;
   wonAt: string;
@@ -78,9 +78,9 @@ const EXPORT_DEFINITIONS = {
   },
   "winner-history": {
     filename: "winner-history.csv",
-    headers: ["draw_label", "full_name", "registration_number", "won_at"],
+    headers: ["round_number", "full_name", "registration_number", "won_at"],
     rows: (store: AdminExportStore) => store.listWinnerHistoryExportRows(),
-    values: (row: WinnerHistoryExportRow) => [row.drawLabel, row.fullName, row.registrationNumber, row.wonAt],
+    values: (row: WinnerHistoryExportRow) => [row.roundNumber, row.fullName, row.registrationNumber, row.wonAt],
   },
   "scan-audit": {
     filename: "scan-audit.csv",
@@ -169,7 +169,7 @@ type SurveyResponseRow = {
 };
 
 type WinnerHistoryRow = {
-  draw_label: string;
+  draw_rounds?: { round_number: number } | Array<{ round_number: number }> | null;
   won_at: string;
   delegates?: { full_name: string; registration_number: string } | Array<{ full_name: string; registration_number: string }> | null;
 };
@@ -257,7 +257,7 @@ export class SupabaseAdminExportStore implements AdminExportStore {
   async listWinnerHistoryExportRows(): Promise<WinnerHistoryExportRow[]> {
     const { data, error } = await this.supabase
       .from("winner_history")
-      .select("draw_label, won_at, delegates(full_name, registration_number)")
+      .select("won_at, draw_rounds(round_number), delegates(full_name, registration_number)")
       .order("won_at", { ascending: false });
 
     if (error) {
@@ -267,7 +267,7 @@ export class SupabaseAdminExportStore implements AdminExportStore {
     return (data ?? []).map((row: WinnerHistoryRow) => {
       const delegate = joinedOne(row.delegates);
       return {
-        drawLabel: row.draw_label,
+        roundNumber: joinedOne(row.draw_rounds)?.round_number ?? 0,
         fullName: delegate?.full_name ?? "Unknown delegate",
         registrationNumber: delegate?.registration_number ?? "",
         wonAt: row.won_at,

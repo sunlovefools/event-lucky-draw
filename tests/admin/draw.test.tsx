@@ -7,34 +7,37 @@ import { drawLuckyWinner, getLuckyDrawPool } from "@/lib/admin/draw";
 import { createStore } from "./test-stores";
 
 describe("lucky draw", () => {
-  it("draws a labeled winner from eligible and manually included non-winners", async () => {
-    const recorded: Array<{ delegateId: string; drawLabel: string; wonAt: string }> = [];
+  it("draws a winner from the eligible, not-yet-drawn candidate pool", async () => {
+    const recorded: Array<{ delegateId: string; roundId: string; wonAt: string }> = [];
 
     const result = await drawLuckyWinner({
       store: createStore({
         async findValidSession() {
           return { id: "session-1", adminId: "admin-1", username: "organizer" };
         },
-        async listLuckyDrawCandidates() {
+        async listLuckyDrawCandidates(_roundId: string) {
           return [
             { id: "delegate-1", fullName: "Ada Lovelace", registrationNumber: "REG-001", drawStatus: "eligible" },
-            { id: "delegate-2", fullName: "Grace Hopper", registrationNumber: "REG-002", drawStatus: "manual_include" },
+            { id: "delegate-2", fullName: "Grace Hopper", registrationNumber: "REG-002", drawStatus: "eligible" },
           ];
         },
-        async recordLuckyDrawWinner(delegateId, drawLabel, wonAt) {
-          recorded.push({ delegateId, drawLabel, wonAt });
+        async tryRecordLuckyDrawWinner(delegateId, roundId, wonAt) {
+          recorded.push({ delegateId, roundId, wonAt });
           return {
-            id: "winner-1",
-            delegateId,
-            fullName: "Grace Hopper",
-            registrationNumber: "REG-002",
-            drawLabel,
-            wonAt,
+            ok: true,
+            winner: {
+              id: "winner-1",
+              delegateId,
+              fullName: "Grace Hopper",
+              registrationNumber: "REG-002",
+              roundId,
+              roundNumber: 1,
+              wonAt,
+            },
           };
         },
       }),
       sessionId: "session-1",
-      drawLabel: " Grand Prize ",
       now: () => new Date("2025-01-01T00:10:00.000Z"),
       random: () => 0.75,
     });
@@ -46,14 +49,15 @@ describe("lucky draw", () => {
         delegateId: "delegate-2",
         fullName: "Grace Hopper",
         registrationNumber: "REG-002",
-        drawLabel: "Grand Prize",
+        roundId: "round-1",
+        roundNumber: 1,
         wonAt: "2025-01-01T00:10:00.000Z",
       },
     });
-    expect(recorded).toEqual([{ delegateId: "delegate-2", drawLabel: "Grand Prize", wonAt: "2025-01-01T00:10:00.000Z" }]);
+    expect(recorded).toEqual([{ delegateId: "delegate-2", roundId: "round-1", wonAt: "2025-01-01T00:10:00.000Z" }]);
   });
 
-  it("excludes previous winners and disqualified delegates from the draw", async () => {
+  it("only draws from the candidate pool the store supplies (already excludes previous winners and excluded delegates)", async () => {
     const recorded: string[] = [];
 
     const result = await drawLuckyWinner({
@@ -61,27 +65,28 @@ describe("lucky draw", () => {
         async findValidSession() {
           return { id: "session-1", adminId: "admin-1", username: "organizer" };
         },
-        async listLuckyDrawCandidates() {
+        async listLuckyDrawCandidates(_roundId: string) {
           return [
-            { id: "delegate-1", fullName: "Ada Lovelace", registrationNumber: "REG-001", drawStatus: "winner" },
-            { id: "delegate-2", fullName: "Grace Hopper", registrationNumber: "REG-002", drawStatus: "disqualified" },
             { id: "delegate-3", fullName: "Katherine Johnson", registrationNumber: "REG-003", drawStatus: "eligible" },
           ];
         },
-        async recordLuckyDrawWinner(delegateId, drawLabel, wonAt) {
+        async tryRecordLuckyDrawWinner(delegateId, roundId, wonAt) {
           recorded.push(delegateId);
           return {
-            id: "winner-1",
-            delegateId,
-            fullName: "Katherine Johnson",
-            registrationNumber: "REG-003",
-            drawLabel,
-            wonAt,
+            ok: true,
+            winner: {
+              id: "winner-1",
+              delegateId,
+              fullName: "Katherine Johnson",
+              registrationNumber: "REG-003",
+              roundId,
+              roundNumber: 1,
+              wonAt,
+            },
           };
         },
       }),
       sessionId: "session-1",
-      drawLabel: "Bonus Draw",
       random: () => 0,
     });
 
@@ -89,35 +94,34 @@ describe("lucky draw", () => {
     expect(recorded).toEqual(["delegate-3"]);
   });
 
-  it("does not draw when there are no eligible non-winners", async () => {
+  it("does not draw when there are no eligible candidates remaining", async () => {
     const result = await drawLuckyWinner({
       store: createStore({
         async findValidSession() {
           return { id: "session-1", adminId: "admin-1", username: "organizer" };
         },
-        async listLuckyDrawCandidates() {
+        async listLuckyDrawCandidates(_roundId: string) {
           return [];
         },
       }),
       sessionId: "session-1",
-      drawLabel: "Bonus Draw",
     });
 
-    expect(result).toEqual({ ok: false, error: "No eligible delegates are available for this draw." });
+    expect(result).toEqual({ ok: false, error: "No eligible delegates remaining — reset to start a new round." });
   });
 
-  it("derives the lucky draw pool from delegate draw status", () => {
+  it("derives the lucky draw pool from base eligibility (all stamps + survey, with admin override)", () => {
     const participants = [
       { id: "delegate-1", fullName: "Ada Lovelace", registrationNumber: "REG-001", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "eligible" as const },
-      { id: "delegate-2", fullName: "Grace Hopper", registrationNumber: "REG-002", stampsCollected: 1, totalActiveStations: 3, surveySubmitted: false, drawStatus: "manual_include" as const },
-      { id: "delegate-3", fullName: "Alan Turing", registrationNumber: "REG-003", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "disqualified" as const },
-      { id: "delegate-4", fullName: "Katherine Johnson", registrationNumber: "REG-004", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "winner" as const },
+      { id: "delegate-2", fullName: "Grace Hopper", registrationNumber: "REG-002", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "auto" as const },
+      { id: "delegate-3", fullName: "Alan Turing", registrationNumber: "REG-003", stampsCollected: 1, totalActiveStations: 3, surveySubmitted: true, drawStatus: "auto" as const },
+      { id: "delegate-4", fullName: "Katherine Johnson", registrationNumber: "REG-004", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "excluded" as const },
     ];
 
     expect(getLuckyDrawPool(participants).map((participant) => participant.id)).toEqual(["delegate-1", "delegate-2"]);
   });
 
-  it("shows lucky draw control and winner history to admins", () => {
+  it("shows the draw controls and round-grouped winner history to admins", () => {
     render(
       <AdminDashboard
         dashboard={{
@@ -133,14 +137,24 @@ describe("lucky draw", () => {
           participants: [],
           stationSummaries: [],
           scanAuditLogs: [],
-          winnerHistory: [
+          drawRounds: [
             {
-              id: "winner-1",
-              delegateId: "delegate-1",
-              fullName: "Ada Lovelace",
-              registrationNumber: "REG-001",
-              drawLabel: "Grand Prize",
-              wonAt: "2025-01-01T00:10:00.000Z",
+              id: "round-1",
+              roundNumber: 1,
+              openedAt: "2025-01-01T00:00:00.000Z",
+              closedAt: null,
+              isCurrent: true,
+              winners: [
+                {
+                  id: "winner-1",
+                  delegateId: "delegate-1",
+                  fullName: "Ada Lovelace",
+                  registrationNumber: "REG-001",
+                  roundId: "round-1",
+                  roundNumber: 1,
+                  wonAt: "2025-01-01T00:10:00.000Z",
+                },
+              ],
             },
           ],
         }}
@@ -148,12 +162,11 @@ describe("lucky draw", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Lucky draw" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Draw label")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Draw winner" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open draw screen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset & start new round" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Winner history" })).toBeInTheDocument();
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
-
-    expect(screen.getByText("Grand Prize")).toBeInTheDocument();
+    expect(screen.getByText(/Round 1/)).toBeInTheDocument();
 
     expect(screen.getAllByText(/REG-001/).length).toBeGreaterThan(0);
   });

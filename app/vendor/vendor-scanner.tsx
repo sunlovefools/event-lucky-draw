@@ -1,0 +1,270 @@
+"use client";
+
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type ScanResult =
+  | { ok: true; duplicate: boolean; message: string }
+  | { ok: false; reason: "not-registered" | "invalid" | "closed" | "unauthorized" | "error"; error: string };
+
+type Mode = "camera" | "manual";
+
+const READER_ID = "vendor-qr-reader";
+
+type ScannerLike = {
+  start: (cameraIdOrConfig: unknown, config: unknown, successCallback: (decoded: string) => void, errorCallback?: (error: unknown) => void) => Promise<void>;
+  stop: () => Promise<void>;
+  clear: () => void;
+};
+
+function describeCameraError(err: unknown): string {
+  const name = (err as { name?: string } | null)?.name;
+  if (name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError") {
+    return "Camera permission denied. Allow camera access, or use “Type code instead”.";
+  }
+  if (name === "NotFoundError" || name === "OverconstrainedError" || name === "DevicesNotFoundError") {
+    return "No camera found. Use “Type code instead” to enter the code.";
+  }
+  return "Camera unavailable. Use “Type code instead” to enter the code.";
+}
+
+function ResultBanner({ result }: { result: ScanResult }) {
+  let cls = "alert-danger";
+  let label = "Couldn't stamp";
+  if (result.ok) {
+    if (result.duplicate) {
+      cls = "alert-info";
+      label = "Already collected";
+    } else {
+      cls = "alert-success";
+      label = "Stamped!";
+    }
+  } else if (result.reason === "not-registered") {
+    cls = "alert-info";
+    label = "Not registered";
+  }
+
+  return (
+    <div className={`alert ${cls}`} role="alert" aria-live="polite">
+      <strong>{label}.</strong> {result.ok ? result.message : result.error}
+    </div>
+  );
+}
+
+export function VendorScanner({ participationOpen }: { participationOpen: boolean }) {
+  const router = useRouter();
+  const [mode, setMode] = useState<Mode>("camera");
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStarted, setCameraStarted] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ScanResult | null>(null);
+
+  const scannerRef = useRef<ScannerLike | null>(null);
+
+  const stopCamera = useCallback(async () => {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    if (!scanner) return;
+    try {
+      await scanner.stop();
+      scanner.clear();
+    } catch {
+      /* already stopped or never started */
+    }
+  }, []);
+
+  const reset = useCallback(() => {
+    void stopCamera();
+    setCameraActive(false);
+    setCameraStarted(false);
+    setScanError(null);
+    setResult(null);
+    setMode("camera");
+  }, [stopCamera]);
+
+  const handlePayload = useCallback(
+    async (payload: string) => {
+      const trimmed = payload.trim();
+      if (!trimmed || busy) return;
+      setBusy(true);
+      setScanError(null);
+      await stopCamera();
+      try {
+        const res = await fetch("/api/vendor/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ badgePayload: trimmed }),
+        });
+        const data = (await res.json()) as ScanResult;
+        setResult(data);
+        if (data.ok) {
+          // Refresh the server tree so the scan-history list updates immediately.
+          router.refresh();
+        }
+      } catch {
+        setResult({ ok: false, reason: "error", error: "Couldn't reach the server. Try again." });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, router, stopCamera],
+  );
+
+  useEffect(() => {
+    if (mode !== "camera" || !cameraActive) return;
+    let cancelled = false;
+    let scanner: ScannerLike | null = null;
+    let started = false;
+
+    const safeStop = () => {
+      if (!scanner) return;
+      try {
+        scanner.stop().catch(() => {});
+      } catch {
+        /* scanner was never started */
+      }
+      try {
+        scanner.clear();
+      } catch {
+        /* nothing to clear */
+      }
+    };
+
+    (async () => {
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+        if (!cancelled) {
+          setCameraActive(false);
+          setCameraStarted(false);
+          setScanError("Camera needs a secure connection (https:// or http://localhost). Use “Type code instead”.");
+        }
+        return;
+      }
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        if (cancelled) return;
+        scanner = new Html5Qrcode(READER_ID) as unknown as ScannerLike;
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 240, height: 240 } },
+          (decoded: string) => {
+            void handlePayload(decoded);
+          },
+          () => {
+            /* ignore per-frame decode errors */
+          },
+        );
+        started = true;
+        setCameraStarted(true);
+        if (cancelled) {
+          safeStop();
+          return;
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setCameraActive(false);
+          setCameraStarted(false);
+          setScanError(describeCameraError(err));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (started) safeStop();
+      setCameraStarted(false);
+    };
+  }, [mode, cameraActive, handlePayload]);
+
+  if (!participationOpen) {
+    return <div className="alert alert-danger">Participation is closed, so stamps can&apos;t be collected.</div>;
+  }
+
+  if (result) {
+    return (
+      <div className="stack">
+        <ResultBanner result={result} />
+        <button type="button" className="btn btn-primary btn-block" onClick={reset}>
+          Scan next delegate
+        </button>
+      </div>
+    );
+  }
+
+  const openManual = useCallback(() => {
+    void stopCamera();
+    setCameraActive(false);
+    setCameraStarted(false);
+    setScanError(null);
+    setMode("manual");
+  }, [stopCamera]);
+
+  return (
+    <div className="register-scan">
+      {mode === "camera" ? (
+        <>
+          <p className="lead">Scan the delegate&apos;s badge QR</p>
+
+          {!cameraActive ? (
+            <div className="camera-idle">
+              <div className="badge-illustration" aria-hidden="true">
+                <span className="badge-illustration__scan" />
+              </div>
+              <button type="button" className="btn btn-primary btn-block camera-allow" onClick={() => setCameraActive(true)}>
+                <svg className="camera-allow__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+                Allow camera access
+              </button>
+            </div>
+          ) : cameraStarted ? (
+            <div className="qr-reader-wrap">
+              <div id={READER_ID} className="qr-reader camera-enter" />
+            </div>
+          ) : (
+            <p className="camera-requesting" aria-live="polite">
+              <span className="camera-requesting__spinner" aria-hidden="true" />
+              Requesting camera permission…
+            </p>
+          )}
+
+          {scanError ? <p className="inline-error" style={{ marginTop: "1rem" }}>{scanError}</p> : null}
+
+          <p className="hint" style={{ marginTop: "1rem" }}>
+            <button type="button" className="link-btn" onClick={openManual}>
+              Type code instead
+            </button>
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="lead">Type the delegate&apos;s badge code.</p>
+          <form
+            className="form"
+            style={{ marginTop: "1rem" }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const value = new FormData(event.currentTarget).get("manualCode");
+              void handlePayload(typeof value === "string" ? value : "");
+            }}
+          >
+            <div className="field">
+              <label className="field-label" htmlFor="vendor-manualCode">Badge code</label>
+              <input id="vendor-manualCode" name="manualCode" className="input" autoComplete="off" autoFocus required />
+            </div>
+            <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+              {busy ? "Stamping…" : "Stamp delegate"}
+            </button>
+          </form>
+          <p className="hint" style={{ marginTop: "1rem" }}>
+            <button type="button" className="link-btn" onClick={() => setMode("camera")}>
+              Scan with camera instead
+            </button>
+          </p>
+        </>
+      )}
+    </div>
+  );
+}

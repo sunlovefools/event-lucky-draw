@@ -2,46 +2,25 @@ import React from "react";
 import Link from "next/link";
 
 import {
-  createStationAction,
-  createVendorAction,
-  drawLuckyWinnerAction,
-  editStationAction,
-  editVendorAction,
   loginAdminAction,
+  resetDrawRoundAction,
+  deleteDrawRoundAction,
   setDelegateDrawStatusAction,
   setParticipationAction,
   updateDelegateNameAction,
 } from "@/app/admin/actions";
+import { DeleteRoundButton } from "@/app/admin/delete-round-button";
 import { friendlyError } from "@/lib/messages";
 import type { AdminDashboardResult } from "@/lib/admin/dashboard";
-import type { Station } from "@/lib/shared/station";
 import type { DelegateDrawStatus } from "@/lib/admin/participants";
 import type { HealthStatus } from "@/lib/health";
+import type { DrawRoundView } from "@/lib/admin/draw";
 
-function StationSelect({ stations, label, name, defaultValue }: { stations: Station[]; label: string; name: string; defaultValue?: string }) {
-  return (
-    <div className="field">
-      <label className="field-label" htmlFor={`${name}-${defaultValue ?? "new"}`}>{label}</label>
-      <select id={`${name}-${defaultValue ?? "new"}`} name={name} className="select" defaultValue={defaultValue ?? ""} required>
-        <option value="" disabled>
-          Choose a station
-        </option>
-        {stations.map((station) => (
-          <option key={station.id} value={station.id}>
-            {station.name} ({station.active ? "active" : "disabled"})
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
 
 const DRAW_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  eligible: { label: "Eligible", cls: "badge-success" },
-  manual_include: { label: "Manual include", cls: "badge-info" },
-  winner: { label: "Winner", cls: "badge-accent" },
-  disqualified: { label: "Disqualified", cls: "badge-danger" },
-  not_eligible: { label: "Not eligible", cls: "badge-neutral" },
+  eligible: { label: "Force eligible", cls: "badge-success" },
+  excluded: { label: "Excluded", cls: "badge-danger" },
+  auto: { label: "Auto", cls: "badge-neutral" },
 };
 
 function formatTime(iso: string) {
@@ -78,10 +57,11 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
     );
   }
 
-  const { participation, stations, vendorAccounts, participants, stationSummaries, scanAuditLogs, winnerHistory = [] } = dashboard;
+  const { participation, participants, stationSummaries, scanAuditLogs, drawRounds = [] } = dashboard;
   const errorMessage = friendlyError(error);
   const nextOpenValue = participation.open ? "false" : "true";
   const buttonLabel = participation.open ? "Close participation" : "Open participation";
+  const totalWinners = drawRounds.reduce((count, round) => count + round.winners.length, 0);
 
   return (
     <main className="shell shell-wide" id="main">
@@ -128,8 +108,6 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
       <nav className="section-nav" aria-label="Dashboard sections">
         <a href="#participation">Participation</a>
         <a href="#status">Status</a>
-        <a href="#stations">Stations</a>
-        <a href="#vendors">Vendors</a>
         <a href="#draw">Draw</a>
         <a href="#winners">Winners</a>
         <a href="#exports">Exports</a>
@@ -151,127 +129,36 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
         </form>
       </section>
 
-      {/* Stations */}
-      <section className="card" id="stations" aria-labelledby="stations-title">
-        <div className="section-head">
-          <h2 id="stations-title">Stations</h2>
-          <span className="badge badge-neutral">{stations.length}</span>
-        </div>
-        <form action={createStationAction} className="form">
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-            <div className="field">
-              <label className="field-label" htmlFor="new-station-name">New station name</label>
-              <input id="new-station-name" name="name" className="input" required placeholder="e.g. Booth A" />
-            </div>
-            <div className="field">
-              <label className="field-label" htmlFor="new-station-active">Status</label>
-              <select id="new-station-active" name="active" className="select" defaultValue="true">
-                <option value="true">Active</option>
-                <option value="false">Disabled</option>
-              </select>
-            </div>
-          </div>
-          <button type="submit" className="btn btn-primary">Create station</button>
-        </form>
-
-        {stations.length === 0 ? <p className="empty">No stations yet.</p> : (
-          <ul className="list" style={{ marginTop: "1rem" }}>
-            {stations.map((station) => (
-              <li key={station.id} className="list-item">
-                <div className="row-between">
-                  <span className="list-item-title">{station.name}</span>
-                  <span className={`badge ${station.active ? "badge-success" : "badge-neutral"}`}>{station.active ? "Active" : "Disabled"}</span>
-                </div>
-                <details className="disclosure">
-                  <summary>Edit station</summary>
-                  <div className="disclosure-body">
-                    <form action={editStationAction} className="form">
-                      <input type="hidden" name="stationId" value={station.id} />
-                      <div className="field">
-                        <label className="field-label" htmlFor={`edit-name-${station.id}`}>Station name</label>
-                        <input id={`edit-name-${station.id}`} name="name" className="input" defaultValue={station.name} required />
-                      </div>
-                      <div className="field">
-                        <label className="field-label" htmlFor={`edit-active-${station.id}`}>Status</label>
-                        <select id={`edit-active-${station.id}`} name="active" className="select" defaultValue={station.active ? "true" : "false"}>
-                          <option value="true">Active</option>
-                          <option value="false">Disabled</option>
-                        </select>
-                      </div>
-                      <button type="submit" className="btn btn-ghost btn-sm">Save station</button>
-                    </form>
-                  </div>
-                </details>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Vendors */}
+      {/* Vendors & stations — each vendor account is the login for exactly one station */}
       <section className="card" id="vendors" aria-labelledby="vendors-title">
         <div className="section-head">
-          <h2 id="vendors-title">Vendor accounts</h2>
-          <span className="badge badge-neutral">{vendorAccounts.length}</span>
+          <h2 id="vendors-title">Vendors &amp; stations</h2>
+          <span className="badge badge-neutral">{dashboard.vendorAccounts.length} vendor(s) · {dashboard.stations.length} station(s)</span>
         </div>
-        <form action={createVendorAction} className="form">
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-            <div className="field">
-              <label className="field-label" htmlFor="new-vendor-username">New vendor username</label>
-              <input id="new-vendor-username" name="username" className="input" autoComplete="username" required />
-            </div>
-            <div className="field">
-              <label className="field-label" htmlFor="new-vendor-password">New vendor password</label>
-              <input id="new-vendor-password" name="password" type="password" className="input" autoComplete="new-password" required />
-            </div>
-            <StationSelect stations={stations} label="New vendor station" name="stationId" />
-            <div className="field">
-              <label className="field-label" htmlFor="new-vendor-active">Status</label>
-              <select id="new-vendor-active" name="active" className="select" defaultValue="true">
-                <option value="true">Active</option>
-                <option value="false">Disabled</option>
-              </select>
-            </div>
-          </div>
-          <button type="submit" className="btn btn-primary">Create vendor</button>
-        </form>
-
-        {vendorAccounts.length === 0 ? <p className="empty">No vendor accounts yet.</p> : (
-          <ul className="list" style={{ marginTop: "1rem" }}>
-            {vendorAccounts.map((vendor) => (
-              <li key={vendor.id} className="list-item">
-                <div className="row-between">
-                  <span className="list-item-title">{vendor.username}</span>
-                  <span className="row" style={{ gap: "0.5rem" }}>
-                    <span className="badge badge-info">{vendor.stationName}</span>
-                    <span className={`badge ${vendor.active ? "badge-success" : "badge-neutral"}`}>{vendor.active ? "Active" : "Disabled"}</span>
-                  </span>
-                </div>
-                <details className="disclosure">
-                  <summary>Edit vendor</summary>
-                  <div className="disclosure-body">
-                    <form action={editVendorAction} className="form">
-                      <input type="hidden" name="vendorId" value={vendor.id} />
-                      <div className="field">
-                        <label className="field-label" htmlFor={`edit-vendor-user-${vendor.id}`}>Username</label>
-                        <input id={`edit-vendor-user-${vendor.id}`} name="username" className="input" defaultValue={vendor.username} autoComplete="username" required />
-                      </div>
-                      <StationSelect stations={stations} label="Station" name="stationId" defaultValue={vendor.stationId} />
-                      <div className="field">
-                        <label className="field-label" htmlFor={`edit-vendor-active-${vendor.id}`}>Status</label>
-                        <select id={`edit-vendor-active-${vendor.id}`} name="active" className="select" defaultValue={vendor.active ? "true" : "false"}>
-                          <option value="true">Active</option>
-                          <option value="false">Disabled</option>
-                        </select>
-                      </div>
-                      <button type="submit" className="btn btn-ghost btn-sm">Save vendor</button>
-                    </form>
+        <p className="muted">
+          Each vendor account is the login for exactly one station, and a vendor account can be signed in on multiple devices at once. Each device is an independent session.
+        </p>
+        {dashboard.vendorAccounts.length === 0 ? (
+          <p className="empty">No vendor accounts yet.</p>
+        ) : (
+          <ul className="list">
+            {dashboard.vendorAccounts.map((v) => {
+              const deviceCount = (dashboard.vendorSessions ?? []).filter((s) => s.vendorId === v.id).length;
+              return (
+                <li key={v.id} className="list-item">
+                  <div className="row-between">
+                    <span className="list-item-title">{v.username}</span>
+                    <span className={`badge ${v.active ? "badge-success" : "badge-neutral"}`}>{v.active ? "Active" : "Disabled"}</span>
                   </div>
-                </details>
-              </li>
-            ))}
+                  <span className="muted">Station: {v.stationName} · {deviceCount} device(s)</span>
+                </li>
+              );
+            })}
           </ul>
         )}
+        <a href="/admin/vendors" className="btn btn-primary btn-sm" style={{ marginTop: "1rem" }}>
+          Manage vendors &amp; stations
+        </a>
       </section>
 
       {/* Lucky draw */}
@@ -279,36 +166,44 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
         <div className="section-head">
           <h2 id="lucky-draw-title">Lucky draw</h2>
         </div>
-        <form action={drawLuckyWinnerAction} className="form">
-          <div className="field">
-            <label className="field-label" htmlFor="drawLabel">Draw label</label>
-            <input id="drawLabel" name="drawLabel" className="input" placeholder="Grand Prize" required />
-          </div>
-          <button type="submit" className="btn btn-accent">Draw winner</button>
-        </form>
-        <p className="hint" style={{ marginTop: "0.75rem" }}>
-          The result appears on the <Link href="/draw">public display</Link>.
-        </p>
+        <p className="muted">Open the draw screen to pick a winner. Reset starts a fresh round so everyone becomes eligible again.</p>
+        <div className="row" style={{ gap: "0.5rem", marginTop: "1rem" }}>
+          <a href="/admin/draw" className="btn btn-accent">Open draw screen</a>
+          <form action={resetDrawRoundAction}>
+            <button type="submit" className="btn btn-primary">Reset &amp; start new round</button>
+          </form>
+        </div>
       </section>
 
-      {/* Winner history */}
+      {/* Winner history (by round) */}
       <section className="card" id="winners" aria-labelledby="winner-history-title">
         <div className="section-head">
           <h2 id="winner-history-title">Winner history</h2>
-          <span className="badge badge-neutral">{winnerHistory.length}</span>
+          <span className="badge badge-neutral">{totalWinners}</span>
         </div>
-        {winnerHistory.length === 0 ? <p className="empty">No winners drawn yet.</p> : (
-          <ul className="list">
-            {winnerHistory.map((winner) => (
-              <li key={winner.id} className="list-item">
+        {drawRounds.length === 0 ? <p className="empty">No rounds yet.</p> : (
+          <div className="rounds">
+            {drawRounds.map((round) => (
+              <div key={round.id} className="round">
                 <div className="row-between">
-                  <span className="list-item-title">{winner.fullName}</span>
-                  <span className="badge badge-accent">{winner.drawLabel}</span>
+                  <h3>Round {round.roundNumber}{round.isCurrent ? " (current)" : ""}</h3>
+                  {!round.isCurrent ? <DeleteRoundButton roundId={round.id} roundNumber={round.roundNumber} /> : null}
                 </div>
-                <span className="muted nowrap">#{winner.registrationNumber} · {formatTime(winner.wonAt)}</span>
-              </li>
+                {round.winners.length === 0 ? (
+                  <p className="muted">No winners yet.</p>
+                ) : (
+                  <ul className="list">
+                    {round.winners.map((winner) => (
+                      <li key={winner.id} className="list-item">
+                        <span className="list-item-title">{winner.fullName}</span>
+                        <span className="muted nowrap">#{winner.registrationNumber} · {formatTime(winner.wonAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </section>
 
@@ -398,7 +293,7 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
         {participants.length === 0 ? <p className="empty">No participants yet.</p> : (
           <ul className="list">
             {participants.map((participant) => {
-              const badge = DRAW_STATUS_BADGE[participant.drawStatus as DelegateDrawStatus] ?? DRAW_STATUS_BADGE.not_eligible;
+              const badge = DRAW_STATUS_BADGE[participant.drawStatus as DelegateDrawStatus] ?? DRAW_STATUS_BADGE.auto;
               return (
                 <li key={participant.id} className="list-item">
                   <div className="row-between">
@@ -411,13 +306,13 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
                   <div className="row" style={{ gap: "0.5rem" }}>
                     <form action={setDelegateDrawStatusAction}>
                       <input type="hidden" name="delegateId" value={participant.id} />
-                      <input type="hidden" name="drawStatus" value="manual_include" />
-                      <button type="submit" className="btn btn-ghost btn-sm">Manually include</button>
+                      <input type="hidden" name="drawStatus" value="eligible" />
+                      <button type="submit" className="btn btn-ghost btn-sm">Mark eligible</button>
                     </form>
                     <form action={setDelegateDrawStatusAction}>
                       <input type="hidden" name="delegateId" value={participant.id} />
-                      <input type="hidden" name="drawStatus" value="disqualified" />
-                      <button type="submit" className="btn btn-ghost btn-sm">Disqualify</button>
+                      <input type="hidden" name="drawStatus" value="excluded" />
+                      <button type="submit" className="btn btn-ghost btn-sm">Exclude</button>
                     </form>
                     <details className="disclosure" style={{ flex: "1 1 200px" }}>
                       <summary>Rename</summary>

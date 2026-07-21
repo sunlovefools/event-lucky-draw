@@ -248,7 +248,9 @@ export class SupabaseDelegateStore implements DelegateStore {
       throw new Error(error.message);
     }
 
-    return data ? delegateFromRow(data) : null;
+            
+
+        return data ? delegateFromRow(data) : null;
   }
 
   async createDelegate(delegate: { registrationNumber: string; fullName: string }): Promise<Delegate> {
@@ -337,10 +339,32 @@ export class SupabaseDelegateStore implements DelegateStore {
       throw new Error(surveyResult.error.message);
     }
 
-    return {
-      submitted: Boolean(surveyResult.data),
-      eligible: delegateResult.data.draw_status === "eligible" || Boolean(delegateResult.data.eligible_at),
-      eligibleAt: delegateResult.data.eligible_at ?? null,
-    };
+            const drawStatus = delegateResult.data.draw_status;
+        let eligible: boolean;
+        if (drawStatus === "eligible") {
+          eligible = true;
+        } else if (drawStatus === "excluded") {
+          eligible = false;
+        } else {
+          const submitted = Boolean(surveyResult.data);
+          const { data: activeStations } = await this.supabase
+            .from("stations")
+            .select("id")
+            .eq("active", true);
+          const activeIds = (activeStations ?? []).map((station) => station.id);
+          const { count: stampCount } = await this.supabase
+            .from("delegate_station_stamps")
+            .select("*", { count: "exact", head: true })
+            .eq("delegate_id", delegateId)
+            .in("station_id", activeIds);
+          const hasAllStamps = activeIds.length > 0 && (stampCount ?? 0) >= activeIds.length;
+          eligible = submitted && hasAllStamps;
+        }
+
+        return {
+          submitted: Boolean(surveyResult.data),
+          eligible,
+          eligibleAt: delegateResult.data.eligible_at ?? null,
+        };
   }
 }

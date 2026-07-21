@@ -37,7 +37,7 @@ function createStore(overrides: Partial<AdminExportStore> = {}): AdminExportStor
     async listWinnerHistoryExportRows() {
       return [
         {
-          drawLabel: "Grand Prize",
+          roundNumber: 1,
           fullName: "Ada Lovelace",
           registrationNumber: "REG-001",
           wonAt: "2025-01-01T00:10:00.000Z",
@@ -65,7 +65,7 @@ describe("admin CSV exports", () => {
     ["participants", "participants-progress.csv", "full_name,registration_number,stamps_collected,total_active_stations,survey_submitted,draw_status\nAda Lovelace,REG-001,2,3,true,eligible\n"],
     ["station-completions", "station-completions.csv", "station_name,active,completions\nAI Booth,true,12\n"],
     ["survey-responses", "survey-responses.csv", "full_name,registration_number,satisfaction,favorite_station,feedback,submitted_at\nAda Lovelace,REG-001,Very satisfied,AI Booth,\"Great, fast flow\",2025-01-01T00:05:00.000Z\n"],
-    ["winner-history", "winner-history.csv", "draw_label,full_name,registration_number,won_at\nGrand Prize,Ada Lovelace,REG-001,2025-01-01T00:10:00.000Z\n"],
+    ["winner-history", "winner-history.csv", "round_number,full_name,registration_number,won_at\n1,Ada Lovelace,REG-001,2025-01-01T00:10:00.000Z\n"],
     ["scan-audit", "scan-audit.csv", "delegate_full_name,station_name,scanned_at,qr_token,result,consumed\nAda Lovelace,AI Booth,2025-01-01T00:00:00.000Z,secure-token,success,true\n"],
   ])("exports %s as a downloadable CSV", async (kind, filename, csv) => {
     const result = await exportAdminCsv({

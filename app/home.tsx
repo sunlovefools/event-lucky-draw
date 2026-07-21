@@ -1,6 +1,7 @@
 import React from "react";
 
 import { submitFinalSurveyAction } from "@/app/final-survey/actions";
+import { logoutDelegateAction } from "@/app/delegate/actions";
 import { friendlyError } from "@/lib/messages";
 import type { DelegateHomeResult } from "@/lib/delegate";
 import { DelegateRegister } from "@/app/components/delegate-register";
@@ -16,11 +17,9 @@ function CheckIcon() {
 export async function Home({
   delegateHomePromise = Promise.resolve({ identified: false }),
   error,
-  pendingStamp = false,
 }: {
   delegateHomePromise?: Promise<DelegateHomeResult>;
   error?: string;
-  pendingStamp?: boolean;
 }) {
   const delegateHome = await delegateHomePromise;
   const errorMessage = friendlyError(error);
@@ -36,7 +35,7 @@ export async function Home({
       {delegateHome.identified ? (
         <DelegateView delegateHome={delegateHome} />
       ) : (
-        <DelegateRegister errorMessage={errorMessage} pendingStamp={pendingStamp} />
+        <DelegateRegister errorMessage={errorMessage} />
       )}
     </main>
   );
@@ -46,6 +45,11 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
   const { delegate, progress, finalSurvey } = delegateHome;
   const pct = progress.totalRequired === 0 ? 0 : Math.round((progress.completedCount / progress.totalRequired) * 100);
   const allDone = progress.readyForFinalSurvey;
+  const allStampsCollected = progress.readyForFinalSurvey;
+  // A delegate is only "entered" once every station stamp is collected AND the
+  // final survey is submitted/eligible. Gating on allStampsCollected is what stops a
+  // profile that has a survey response but is missing stamps from showing "You're in".
+  const isEntered = allStampsCollected && (finalSurvey.submitted || finalSurvey.eligible);
 
   return (
     <>
@@ -98,7 +102,7 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
 
       {finalSurvey.available ? (
         <FinalSurveyForm stations={progress.stations.map((s) => s.name)} />
-      ) : finalSurvey.submitted || finalSurvey.eligible ? (
+      ) : isEntered ? (
         <section className="card center" aria-labelledby="entered-title">
           <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ margin: "0 auto 0.5rem" }}>
             <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4Z" />
@@ -111,7 +115,29 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
           </p>
           <p className="muted" style={{ marginTop: "0.75rem" }}>Registration #{delegate.registrationNumber}</p>
         </section>
-      ) : null}
+      ) : allStampsCollected ? (
+        <section className="card center" aria-labelledby="not-eligible-title">
+          <p className="eyebrow">Almost there</p>
+          <h2 id="not-eligible-title">You're not in the draw yet</h2>
+          <p className="lead" style={{ margin: "0.5rem auto 0" }}>
+            Your final survey was recorded, but you're not eligible to enter the draw. If this looks like a mistake, please see the event crew.
+          </p>
+        </section>
+      ) : (
+        <section className="card center" aria-labelledby="need-stamps-title">
+          <p className="eyebrow">Not yet entered</p>
+          <h2 id="need-stamps-title">Get all the stamps to enter the lucky draw!</h2>
+          <p className="lead" style={{ margin: "0.5rem auto 0" }}>
+            Visit every station and collect a stamp from each one, then submit the final survey to enter.
+          </p>
+        </section>
+      )}
+
+      <form action={logoutDelegateAction} style={{ marginTop: "1.5rem" }}>
+        <button type="submit" className="btn btn-danger btn-block">
+          Log out
+        </button>
+      </form>
     </>
   );
 }

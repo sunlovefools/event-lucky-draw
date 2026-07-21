@@ -1,19 +1,10 @@
 import React from "react";
-import Link from "next/link";
 
-import { AutoRefresh } from "@/app/components/auto-refresh";
-import { QrDisplay } from "@/app/components/qr-display";
+import { RefreshButton } from "@/app/components/refresh-button";
+import { VendorScanner } from "@/app/vendor/vendor-scanner";
 import { friendlyError } from "@/lib/messages";
-import { loginVendorAction, generateStationQrAction } from "@/app/vendor/actions";
+import { loginVendorAction } from "@/app/vendor/actions";
 import type { VendorDashboardResult } from "@/lib/vendor/portal";
-import type { StationQrStatus } from "@/lib/vendor/portal";
-
-const QR_STATUS: Record<StationQrStatus, { label: string; cls: string }> = {
-  active: { label: "Active — ready to scan", cls: "badge-success" },
-  consumed: { label: "Scanned", cls: "badge-neutral" },
-  expired: { label: "Expired", cls: "badge-warn" },
-  invalidated: { label: "Replaced", cls: "badge-warn" },
-};
 
 function formatTime(iso: string) {
   try {
@@ -31,7 +22,7 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
         <section className="hero" aria-labelledby="vendor-login-title">
           <p className="eyebrow">Vendor</p>
           <h1 id="vendor-login-title">Vendor login</h1>
-          <p className="lead">Sign in to generate your station stamp QR.</p>
+          <p className="lead">Sign in to stamp delegates at your station.</p>
           {errorMessage ? <p className="alert alert-danger" role="alert">{errorMessage}</p> : null}
           <form action={loginVendorAction} className="form" style={{ marginTop: "1.25rem" }}>
             <div className="field">
@@ -49,13 +40,11 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
     );
   }
 
-  const { station, participationOpen, currentQr, scanHistory } = dashboard;
+  const { station, participationOpen, scanHistory } = dashboard;
   const errorMessage = friendlyError(error);
 
   return (
     <main className="shell" id="main">
-      <AutoRefresh intervalMs={5000} />
-
       <section className="hero" aria-labelledby="vendor-station-title">
         <div className="row-between">
           <div>
@@ -68,47 +57,27 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
           </span>
         </div>
         <p className="lead">Signed in as {dashboard.vendor.username}.</p>
-        <p className="muted">This page refreshes automatically.</p>
         {errorMessage ? <p className="alert alert-danger" role="alert" style={{ marginTop: "1rem" }}>{errorMessage}</p> : null}
       </section>
 
-      <section className="card" aria-labelledby="station-qr-title">
+      <section className="card" aria-labelledby="stamp-delegate-title">
         <div className="section-head">
-          <h2 id="station-qr-title">Station stamp QR</h2>
-          {currentQr ? <span className={`badge ${QR_STATUS[currentQr.status].cls}`}>{QR_STATUS[currentQr.status].label}</span> : null}
+          <h2 id="stamp-delegate-title">Stamp a delegate</h2>
+          <span className="badge badge-info">Scan badge</span>
         </div>
-
-        {participationOpen ? (
-          <form action={generateStationQrAction}>
-            <button type="submit" className="btn btn-accent">Generate new QR</button>
-            <p className="hint" style={{ marginTop: "0.5rem" }}>
-              Each new QR replaces the previous one. Show it to the delegate to scan.
-            </p>
-          </form>
-        ) : (
-          <p className="alert alert-danger">Participation is closed. QR generation is disabled.</p>
-        )}
-
-        {currentQr ? (
-          <div className="stack" style={{ marginTop: "1.25rem" }}>
-            <QrDisplay value={currentQr.url} label={`Station QR for ${station.name}`} />
-            {currentQr.scannedByFullName ? (
-              <p className="alert alert-info">Scanned by {currentQr.scannedByFullName}</p>
-            ) : null}
-            {currentQr.consumedAt ? (
-              <p className="muted">Consumed at {formatTime(currentQr.consumedAt)}</p>
-            ) : null}
-            <p className="muted">Expires at {formatTime(currentQr.expiresAt)}</p>
-          </div>
-        ) : (
-          <p className="empty">No active QR yet. Generate one when a delegate is ready to scan.</p>
-        )}
+        <p className="hint" style={{ marginTop: "0", marginBottom: "1rem" }}>
+          Scan the delegate&apos;s badge QR (the same one they use to register). The stamp is added to their passport instantly.
+        </p>
+        <VendorScanner participationOpen={participationOpen} />
       </section>
 
       <section className="card" aria-labelledby="scan-history-title">
         <div className="section-head">
           <h2 id="scan-history-title">Station scan history</h2>
-          <span className="badge badge-neutral">{scanHistory.length} scans</span>
+          <div className="head-actions">
+            <span className="badge badge-neutral">{scanHistory.length} scans</span>
+            <RefreshButton label="Refresh list" />
+          </div>
         </div>
         {scanHistory.length === 0 ? (
           <p className="empty">No scans yet.</p>
@@ -125,10 +94,6 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
           </ul>
         )}
       </section>
-
-      <p className="center muted">
-        <Link href="/">Event home</Link>
-      </p>
     </main>
   );
 }

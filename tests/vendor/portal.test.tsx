@@ -3,8 +3,13 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { VendorPortal } from "@/app/vendor/vendor-portal";
-import { generateStationQr, getVendorDashboard } from "@/lib/vendor/portal";
+import { getVendorDashboard, collectStampFromVendorScan } from "@/lib/vendor/portal";
 import { createStore } from "./test-stores";
+
+const vendorSession = {
+  id: "vendor-session-1",
+  vendor: { id: "vendor-1", username: "ai-vendor", station: { id: "station-1", name: "AI Booth", active: true } },
+};
 
 describe("vendor portal dashboard", () => {
   it("blocks portal data without a valid vendor session", async () => {
@@ -18,14 +23,7 @@ describe("vendor portal dashboard", () => {
       store: createStore({
         async findValidVendorSession(sessionId) {
           expect(sessionId).toBe("vendor-session-1");
-          return {
-            id: "vendor-session-1",
-            vendor: {
-              id: "vendor-1",
-              username: "ai-vendor",
-              station: { id: "station-1", name: "AI Booth", active: true },
-            },
-          };
+          return vendorSession;
         },
       }),
       sessionId: "vendor-session-1",
@@ -36,37 +34,15 @@ describe("vendor portal dashboard", () => {
       vendor: { id: "vendor-1", username: "ai-vendor" },
       station: { id: "station-1", name: "AI Booth", active: true },
       participationOpen: true,
-      currentQr: null,
       scanHistory: [],
     });
   });
 
-  it("returns consumed QR status and full station scan history for polling", async () => {
+  it("returns full station scan history for polling", async () => {
     const result = await getVendorDashboard({
       store: createStore({
         async findValidVendorSession() {
-          return {
-            id: "vendor-session-1",
-            vendor: {
-              id: "vendor-1",
-              username: "ai-vendor",
-              station: { id: "station-1", name: "AI Booth", active: true },
-            },
-          };
-        },
-        async findCurrentQrForStation(stationId) {
-          expect(stationId).toBe("station-1");
-          return {
-            id: "qr-1",
-            token: "secure-token",
-            stationId,
-            url: "/stamp/secure-token",
-            expiresAt: "2025-01-01T00:02:00.000Z",
-            invalidatedAt: null,
-            consumedAt: "2025-01-01T00:01:00.000Z",
-            status: "consumed",
-            scannedByFullName: "Ada Lovelace",
-          };
+          return vendorSession;
         },
         async listStationScanHistory(stationId) {
           expect(stationId).toBe("station-1");
@@ -89,16 +65,10 @@ describe("vendor portal dashboard", () => {
         },
       }),
       sessionId: "vendor-session-1",
-      now: () => new Date("2025-01-01T00:04:00.000Z"),
     });
 
     expect(result).toMatchObject({
       authorized: true,
-      currentQr: {
-        status: "consumed",
-        scannedByFullName: "Ada Lovelace",
-        consumedAt: "2025-01-01T00:01:00.000Z",
-      },
       scanHistory: [
         { delegateFullName: "Ada Lovelace", collectedAt: "2025-01-01T00:01:00.000Z" },
         { delegateFullName: "Grace Hopper", collectedAt: "2025-01-01T00:03:00.000Z" },
@@ -107,117 +77,108 @@ describe("vendor portal dashboard", () => {
   });
 });
 
-describe("manual station QR generation", () => {
-  it("creates a short-lived one-time QR URL for the vendor's assigned station", async () => {
-    const result = await generateStationQr({
+describe("vendor stamp scan", () => {
+  it("stamps a registered delegate for the vendor's station and shows the success message", async () => {
+    const result = await collectStampFromVendorScan({
       store: createStore({
-        async findValidVendorSession() {
-          return {
-            id: "vendor-session-1",
-            vendor: {
-              id: "vendor-1",
-              username: "ai-vendor",
-              station: { id: "station-1", name: "AI Booth", active: true },
-            },
-          };
+        async findDelegateByRegistrationNumber(reg) {
+          expect(reg).toBe("REG-001");
+          return { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" };
+        },
+        async hasDelegateStamp() {
+          return false;
         },
       }),
-      sessionId: "vendor-session-1",
-      now: () => new Date("2025-01-01T00:00:00.000Z"),
-      newToken: () => "secure-token",
+      session: vendorSession,
+      badgePayload: "REG-001",
     });
 
     expect(result).toEqual({
       ok: true,
-      qr: {
-        id: "qr-1",
-        token: "secure-token",
-        stationId: "station-1",
-        url: "/stamp/secure-token",
-        expiresAt: "2025-01-01T00:02:00.000Z",
-        invalidatedAt: null,
-        consumedAt: null,
-        status: "active",
-      },
+      delegate: { fullName: "Ada Lovelace" },
+      duplicate: false,
+      message: "Successful Stamped Ada Lovelace QR! Ask him/her to refresh their page to look at the stamp!",
     });
   });
 
-  it("regeneration invalidates the previous QR before creating a replacement", async () => {
-    const calls: string[] = [];
-
-    await generateStationQr({
+  it("treats a second scan of the same delegate as a duplicate", async () => {
+    const result = await collectStampFromVendorScan({
       store: createStore({
-        async findValidVendorSession() {
-          return {
-            id: "vendor-session-1",
-            vendor: {
-              id: "vendor-1",
-              username: "ai-vendor",
-              station: { id: "station-1", name: "AI Booth", active: true },
-            },
-          };
+        async findDelegateByRegistrationNumber() {
+          return { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" };
         },
-        async invalidateCurrentQrForStation(stationId, invalidatedAt) {
-          calls.push(`invalidate ${stationId} ${invalidatedAt}`);
-        },
-        async createStationQr(qr) {
-          calls.push(`create ${qr.stationId} ${qr.token}`);
-          return {
-            id: "qr-2",
-            token: qr.token,
-            stationId: qr.stationId,
-            url: `/stamp/${qr.token}`,
-            expiresAt: qr.expiresAt,
-            invalidatedAt: null,
-            consumedAt: null,
-            status: "active",
-          };
+        async hasDelegateStamp() {
+          return true;
         },
       }),
-      sessionId: "vendor-session-1",
-      now: () => new Date("2025-01-01T00:00:00.000Z"),
-      newToken: () => "replacement-token",
+      session: vendorSession,
+      badgePayload: "REG-001",
     });
 
-    expect(calls).toEqual([
-      "invalidate station-1 2025-01-01T00:00:00.000Z",
-      "create station-1 replacement-token",
-    ]);
+    expect(result).toEqual({
+      ok: true,
+      delegate: { fullName: "Ada Lovelace" },
+      duplicate: true,
+      message: "Ada Lovelace was already collected at this station.",
+    });
   });
 
-  it("blocks QR generation when participation is closed", async () => {
-    let created = false;
-
-    const result = await generateStationQr({
+  it("rejects a badge for a delegate who hasn't registered yet", async () => {
+    const result = await collectStampFromVendorScan({
       store: createStore({
-        async findValidVendorSession() {
-          return {
-            id: "vendor-session-1",
-            vendor: {
-              id: "vendor-1",
-              username: "ai-vendor",
-              station: { id: "station-1", name: "AI Booth", active: true },
-            },
-          };
+        async findDelegateByRegistrationNumber() {
+          return null;
         },
+      }),
+      session: vendorSession,
+      badgePayload: "REG-999",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "not-registered",
+      error: "Delegate not registered — ask them to register first.",
+    });
+  });
+
+  it("rejects an invalid (empty) badge payload", async () => {
+    const result = await collectStampFromVendorScan({
+      store: createStore(),
+      session: vendorSession,
+      badgePayload: "   ",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "invalid",
+      error: "This QR isn't a valid delegate badge.",
+    });
+  });
+
+  it("blocks stamping when participation is closed", async () => {
+    const result = await collectStampFromVendorScan({
+      store: createStore({
         async readParticipationOpen() {
           return false;
         },
-        async createStationQr() {
-          created = true;
-          throw new Error("should not create QR while participation is closed");
+        async findDelegateByRegistrationNumber() {
+          return { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" };
         },
       }),
-      sessionId: "vendor-session-1",
+      session: vendorSession,
+      badgePayload: "REG-001",
     });
 
-    expect(result).toEqual({ ok: false, error: "Participation is closed." });
-    expect(created).toBe(false);
+    expect(result).toEqual({
+      ok: false,
+      reason: "closed",
+      error: "Participation is closed.",
+    });
   });
 });
 
 describe("vendor portal UI", () => {
-  it("shows the assigned station and QR generation controls to vendors", () => {
+  it("shows the assigned station and a badge scanner for vendors", () => {
     render(
       <VendorPortal
         dashboard={{
@@ -225,16 +186,6 @@ describe("vendor portal UI", () => {
           vendor: { id: "vendor-1", username: "ai-vendor" },
           station: { id: "station-1", name: "AI Booth", active: true },
           participationOpen: true,
-          currentQr: {
-            id: "qr-1",
-            token: "secure-token",
-            stationId: "station-1",
-            url: "/stamp/secure-token",
-            expiresAt: "2025-01-01T00:02:00.000Z",
-            invalidatedAt: null,
-            consumedAt: null,
-            status: "active",
-          },
           scanHistory: [],
         }}
       />,
@@ -242,78 +193,12 @@ describe("vendor portal UI", () => {
 
     expect(screen.getByRole("heading", { name: "AI Booth" })).toBeInTheDocument();
     expect(screen.getAllByText(/Signed in as ai-vendor/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Generate new QR" })).toBeInTheDocument();
-    expect(screen.getByText("/stamp/secure-token")).toBeInTheDocument();
-    expect(screen.getByText("Active — ready to scan")).toBeInTheDocument();
-    expect(screen.getByText(/Expires at/)).toBeInTheDocument();
-    expect(screen.getByText("This page refreshes automatically.")).toBeInTheDocument();
+    expect(screen.getAllByText(/Scan the delegate's badge QR/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Allow camera access" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh list" })).toBeInTheDocument();
   });
 
-  it("shows expired QR status", () => {
-    render(
-      <VendorPortal
-        dashboard={{
-          authorized: true,
-          vendor: { id: "vendor-1", username: "ai-vendor" },
-          station: { id: "station-1", name: "AI Booth", active: true },
-          participationOpen: true,
-          currentQr: {
-            id: "qr-1",
-            token: "expired-token",
-            stationId: "station-1",
-            url: "/stamp/expired-token",
-            expiresAt: "2025-01-01T00:02:00.000Z",
-            invalidatedAt: null,
-            consumedAt: null,
-            status: "expired",
-          },
-          scanHistory: [],
-        }}
-      />,
-    );
-
-    expect(screen.getByText("Expired")).toBeInTheDocument();
-  });
-
-  it("shows consumed status and station scan history with delegate names and timestamps", () => {
-    render(
-      <VendorPortal
-        dashboard={{
-          authorized: true,
-          vendor: { id: "vendor-1", username: "ai-vendor" },
-          station: { id: "station-1", name: "AI Booth", active: true },
-          participationOpen: true,
-          currentQr: {
-            id: "qr-1",
-            token: "secure-token",
-            stationId: "station-1",
-            url: "/stamp/secure-token",
-            expiresAt: "2025-01-01T00:02:00.000Z",
-            invalidatedAt: null,
-            consumedAt: "2025-01-01T00:01:00.000Z",
-            status: "consumed",
-            scannedByFullName: "Ada Lovelace",
-          },
-          scanHistory: [
-            {
-              id: "stamp-1",
-              delegateFullName: "Ada Lovelace",
-              stationId: "station-1",
-              stationName: "AI Booth",
-              collectedAt: "2025-01-01T00:01:00.000Z",
-            },
-          ],
-        }}
-      />,
-    );
-
-    expect(screen.getByText("Scanned")).toBeInTheDocument();
-    expect(screen.getByText("Scanned by Ada Lovelace")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Station scan history" })).toBeInTheDocument();
-    expect(screen.getAllByText("Ada Lovelace").length).toBeGreaterThan(0);
-  });
-
-  it("explains when QR generation is blocked because participation is closed", () => {
+  it("explains when stamping is blocked because participation is closed", () => {
     render(
       <VendorPortal
         dashboard={{
@@ -321,13 +206,12 @@ describe("vendor portal UI", () => {
           vendor: { id: "vendor-1", username: "ai-vendor" },
           station: { id: "station-1", name: "AI Booth", active: true },
           participationOpen: false,
-          currentQr: null,
           scanHistory: [],
         }}
       />,
     );
 
-    expect(screen.getByText("Participation is closed. QR generation is disabled.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Generate new QR" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Participation is closed, so stamps can't be collected/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Allow camera access" })).not.toBeInTheDocument();
   });
 });

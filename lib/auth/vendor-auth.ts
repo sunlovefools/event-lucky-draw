@@ -25,6 +25,15 @@ export type VendorSession = {
   expiresAt: string;
 };
 
+// One independent login on one physical device. A single vendor account may
+// have many of these at once — the station can be staffed by several phones.
+export type VendorDeviceSession = {
+  id: string;
+  vendorId: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
 export type ValidVendorSession = {
   id: string;
   vendor: {
@@ -41,6 +50,8 @@ export type VendorSessionStore = {
 export type VendorAuthStore = VendorSessionStore & {
   findActiveVendorByUsername(username: string): Promise<VendorAccount | null>;
   createVendorSession(vendorId: string, expiresAt: string): Promise<VendorSession>;
+  listActiveVendorSessions(vendorId: string, nowIso: string): Promise<VendorDeviceSession[]>;
+  revokeVendorSession(sessionId: string, nowIso: string): Promise<void>;
 };
 
 const VENDOR_SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -197,5 +208,37 @@ export class SupabaseVendorAuthStore implements VendorAuthStore {
         station: stationFromJoin(vendor.stations),
       },
     };
+
+  }
+
+  async listActiveVendorSessions(vendorId: string, nowIso: string): Promise<VendorDeviceSession[]> {
+    const { data, error } = await this.supabase
+      .from("vendor_sessions")
+      .select("id, vendor_id, created_at, expires_at")
+      .eq("vendor_id", vendorId)
+      .gt("expires_at", nowIso)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      vendorId: row.vendor_id,
+      createdAt: row.created_at,
+      expiresAt: row.expires_at,
+    }));
+  }
+
+  async revokeVendorSession(sessionId: string, nowIso: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("vendor_sessions")
+      .update({ expires_at: nowIso })
+      .eq("id", sessionId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 }

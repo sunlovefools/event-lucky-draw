@@ -41,10 +41,11 @@ describe("protected admin dashboard", () => {
       },
       stations: [],
       vendorAccounts: [],
+      vendorSessions: [],
       participants: [],
       stationSummaries: [],
       scanAuditLogs: [],
-      winnerHistory: [],
+      drawRounds: [],
     });
   });
 
@@ -174,7 +175,6 @@ describe("dashboard aggregation", () => {
               stationId: "station-1",
               stationName: "AI Booth",
               scannedAt: "2025-01-01T00:00:00.000Z",
-              qrTokenId: "qr-1",
               qrToken: "secure-token",
               result: "success",
               consumed: true,
@@ -250,15 +250,25 @@ describe("dashboard aggregation", () => {
         async findValidSession() {
           return { id: "session-1", adminId: "admin-1", username: "organizer" };
         },
-        async listWinnerHistory() {
+        async listDrawRounds() {
           return [
             {
-              id: "winner-1",
-              delegateId: "delegate-1",
-              fullName: "Ada Lovelace",
-              registrationNumber: "REG-001",
-              drawLabel: "Grand Prize",
-              wonAt: "2025-01-01T00:10:00.000Z",
+              id: "round-1",
+              roundNumber: 1,
+              openedAt: "2025-01-01T00:00:00.000Z",
+              closedAt: null,
+              isCurrent: true,
+              winners: [
+                {
+                  id: "winner-1",
+                  delegateId: "delegate-1",
+                  fullName: "Ada Lovelace",
+                  registrationNumber: "REG-001",
+                  roundId: "round-1",
+                  roundNumber: 1,
+                  wonAt: "2025-01-01T00:10:00.000Z",
+                },
+              ],
             },
           ];
         },
@@ -268,14 +278,22 @@ describe("dashboard aggregation", () => {
 
     expect(result).toMatchObject({
       authorized: true,
-      winnerHistory: [
+      drawRounds: [
         {
-          id: "winner-1",
-          delegateId: "delegate-1",
-          fullName: "Ada Lovelace",
-          registrationNumber: "REG-001",
-          drawLabel: "Grand Prize",
-          wonAt: "2025-01-01T00:10:00.000Z",
+          id: "round-1",
+          roundNumber: 1,
+          isCurrent: true,
+          winners: [
+            {
+              id: "winner-1",
+              delegateId: "delegate-1",
+              fullName: "Ada Lovelace",
+              registrationNumber: "REG-001",
+              roundId: "round-1",
+              roundNumber: 1,
+              wonAt: "2025-01-01T00:10:00.000Z",
+            },
+          ],
         },
       ],
     });
@@ -299,7 +317,7 @@ describe("admin dashboard UI", () => {
           participants: [],
           stationSummaries: [],
           scanAuditLogs: [],
-          winnerHistory: [],
+          drawRounds: [],
         }}
       />,
     );
@@ -327,7 +345,7 @@ describe("admin dashboard UI", () => {
           participants: [],
           stationSummaries: [],
           scanAuditLogs: [],
-          winnerHistory: [],
+          drawRounds: [],
         }}
       />,
     );
@@ -366,13 +384,12 @@ describe("admin dashboard UI", () => {
               stationId: "station-1",
               stationName: "AI Booth",
               scannedAt: "2025-01-01T00:00:00.000Z",
-              qrTokenId: "qr-1",
               qrToken: "secure-token",
               result: "success",
               consumed: true,
             },
           ],
-          winnerHistory: [],
+          drawRounds: [],
         }}
       />,
     );
@@ -414,7 +431,7 @@ describe("admin dashboard UI", () => {
           ],
           stationSummaries: [],
           scanAuditLogs: [],
-          winnerHistory: [],
+          drawRounds: [],
         }}
       />,
     );
@@ -422,10 +439,10 @@ describe("admin dashboard UI", () => {
     expect(screen.getByRole("heading", { name: "Participants" })).toBeInTheDocument();
     expect(screen.getAllByText("Ada Lovelace").length).toBeGreaterThan(0);
         expect(screen.getAllByText(/REG-001 · 2\/3 stamps/).length).toBeGreaterThan(0);
-        expect(screen.getByText("Eligible")).toBeInTheDocument();
+        expect(screen.getByText("Force eligible")).toBeInTheDocument();
     expect(screen.getByLabelText("Full name")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save name" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Manually include" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Disqualify" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark eligible" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exclude" })).toBeInTheDocument();
   });
 });

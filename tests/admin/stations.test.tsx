@@ -42,7 +42,28 @@ describe("station management", () => {
     expect(updatedStations).toEqual([{ stationId: "station-1", name: "AI Experience Booth", active: false }]);
   });
 
-  it("shows station and vendor management to admins", () => {
+  it("allows multiple stations for the event", async () => {
+    let created: { name: string; active: boolean } | null = null;
+    const store = createStore({
+      async findValidSession() {
+        return { id: "session-1", adminId: "admin-1", username: "organizer" };
+      },
+      async listStations() {
+        return [{ id: "station-1", name: "AI Booth", active: true }];
+      },
+      async createStation(station) {
+        created = station;
+        return { id: "station-2", ...station };
+      },
+    });
+
+    const result = await createStation({ store, sessionId: "session-1", name: "Second Booth", active: true });
+
+    expect(result).toEqual({ ok: true, station: { id: "station-2", name: "Second Booth", active: true } });
+    expect(created).toEqual({ name: "Second Booth", active: true });
+  });
+
+  it("shows the vendors & stations summary to admins", () => {
     render(
       <AdminDashboard
         dashboard={{
@@ -66,30 +87,20 @@ describe("station management", () => {
               active: true,
             },
           ],
+          vendorSessions: [
+            { id: "sess-1", vendorId: "vendor-1", createdAt: "2025-01-01T00:00:00.000Z", expiresAt: "2025-01-02T00:00:00.000Z" },
+            { id: "sess-2", vendorId: "vendor-1", createdAt: "2025-01-01T00:05:00.000Z", expiresAt: "2025-01-02T00:00:00.000Z" },
+          ],
           participants: [],
           stationSummaries: [],
           scanAuditLogs: [],
-          winnerHistory: [],
+          drawRounds: [],
         }}
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Stations" })).toBeInTheDocument();
-    expect(screen.getByLabelText("New station name")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create station" })).toBeInTheDocument();
-    expect(screen.getAllByText("AI Booth").length).toBeGreaterThan(0);
-
-    
-    expect(screen.getAllByText("Cloud Booth").length).toBeGreaterThan(0);
-        expect(screen.getByText("ai-vendor")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Save station" })).toHaveLength(2);
-
-    expect(screen.getByRole("heading", { name: "Vendor accounts" })).toBeInTheDocument();
-    expect(screen.getByLabelText("New vendor username")).toBeInTheDocument();
-    expect(screen.getByLabelText("New vendor password")).toBeInTheDocument();
-    expect(screen.getByLabelText("New vendor station")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create vendor" })).toBeInTheDocument();
-    expect(screen.getByText("ai-vendor")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save vendor" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Vendors & stations" })).toBeInTheDocument();
+    expect(screen.getByText("Station: AI Booth · 2 device(s)")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Manage vendors & stations" })).toHaveAttribute("href", "/admin/vendors");
   });
 });

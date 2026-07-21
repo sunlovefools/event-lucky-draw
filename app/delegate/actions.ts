@@ -4,7 +4,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { DELEGATE_SESSION_COOKIE } from "@/app/delegate/session";
-import { PENDING_STAMP_COOKIE } from "@/app/stamp/pending";
 import { identifyDelegate, SupabaseDelegateStore } from "@/lib/delegate";
 
 export async function identifyDelegateAction(formData: FormData) {
@@ -20,7 +19,6 @@ export async function identifyDelegateAction(formData: FormData) {
   }
 
   const cookieStore = await cookies();
-  const pendingStampToken = cookieStore.get(PENDING_STAMP_COOKIE)?.value;
   cookieStore.set(DELEGATE_SESSION_COOKIE, result.session.id, {
     httpOnly: true,
     sameSite: "lax",
@@ -29,9 +27,11 @@ export async function identifyDelegateAction(formData: FormData) {
     path: "/",
   });
 
-  if (pendingStampToken) {
-    redirect(`/stamp/${encodeURIComponent(pendingStampToken)}`);
-  }
+  redirect("/");
+}
 
+export async function logoutDelegateAction() {
+  const cookieStore = await cookies();
+  cookieStore.delete({ name: DELEGATE_SESSION_COOKIE, path: "/" });
   redirect("/");
 }

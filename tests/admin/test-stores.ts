@@ -47,6 +47,9 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
     async listVendorAccounts() {
       return [];
     },
+    async listVendorSessions() {
+      return [];
+    },
     async createStation(station) {
       return { id: "station-1", name: station.name, active: station.active };
     },
@@ -80,21 +83,34 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
     async listScanAuditLogs() {
       return [];
     },
-    async listWinnerHistory() {
+    async listDrawRounds() {
       return [];
     },
-    async listLuckyDrawCandidates() {
+    async getCurrentDrawRound() {
+      return { id: "round-1", roundNumber: 1, openedAt: "2025-01-01T00:00:00.000Z", closedAt: null };
+    },
+    async listLuckyDrawCandidates(_roundId: string) {
       return [];
     },
-    async recordLuckyDrawWinner(delegateId, drawLabel, wonAt) {
+    async tryRecordLuckyDrawWinner(delegateId, roundId, wonAt) {
       return {
-        id: "winner-1",
-        delegateId,
-        fullName: "Ada Lovelace",
-        registrationNumber: "REG-001",
-        drawLabel,
-        wonAt,
+        ok: true,
+        winner: {
+          id: "winner-1",
+          delegateId,
+          fullName: "Ada Lovelace",
+          registrationNumber: "REG-001",
+          roundId,
+          roundNumber: 1,
+          wonAt,
+        },
       };
+    },
+    async closeCurrentRoundAndOpenNext(nowIso: string) {
+      return { id: "round-2", roundNumber: 2, openedAt: nowIso, closedAt: null };
+    },
+    async deleteDrawRound(_roundId: string) {
+      return;
     },
     async updateDelegateName(delegateId, fullName) {
       return {
@@ -104,7 +120,7 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
         stampsCollected: 0,
         totalActiveStations: 0,
         surveySubmitted: false,
-        drawStatus: "not_eligible",
+        drawStatus: "auto",
       };
     },
     async updateDelegateDrawStatus(delegateId, drawStatus) {

@@ -288,14 +288,6 @@ describe("delegate home UI", () => {
     expect(screen.getByRole("button", { name: "Type code instead" })).toBeInTheDocument();
   });
 
-  it("tells unregistered delegates a pending station stamp will apply after registration", async () => {
-    render(await Home({
-      delegateHomePromise: Promise.resolve({ identified: false }),
-      pendingStamp: true,
-    }));
-
-    expect(screen.getByText(/pending station stamp/i)).toBeInTheDocument();
-  });
 
   it("welcomes back remembered delegates", async () => {
     render(await Home({
@@ -360,5 +352,28 @@ describe("delegate home UI", () => {
 
     expect(screen.getByRole("heading", { name: "You're entered into the lucky draw" })).toBeInTheDocument();
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+  });
+
+  it("does not show 'You're in' for a delegate missing stamps, even if a survey exists", async () => {
+    render(await Home({
+      delegateHomePromise: Promise.resolve({
+        identified: true,
+        delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+        progress: {
+          stations: [
+            { id: "station-1", name: "AI Booth", completed: false },
+            { id: "station-2", name: "Cloud Booth", completed: false },
+          ],
+          completedCount: 0,
+          totalRequired: 2,
+          remainingCount: 2,
+          readyForFinalSurvey: false,
+        },
+        finalSurvey: { available: false, submitted: true, eligible: false, eligibleAt: null },
+      }),
+    }));
+
+    expect(screen.queryByRole("heading", { name: "You're entered into the lucky draw" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Get all the stamps to enter the lucky draw!" })).toBeInTheDocument();
   });
 });

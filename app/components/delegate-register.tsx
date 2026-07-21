@@ -27,7 +27,7 @@ function describeCameraError(err: unknown): string {
   return "Camera unavailable. Use “Type code instead” to enter your code.";
 }
 
-export function DelegateRegister({ errorMessage, pendingStamp }: { errorMessage?: string | null; pendingStamp: boolean }) {
+export function DelegateRegister({ errorMessage }: { errorMessage?: string | null }) {
   const [mode, setMode] = useState<Mode>("camera");
   const [step, setStep] = useState<Step>("capture");
   const [code, setCode] = useState("");
@@ -35,15 +35,34 @@ export function DelegateRegister({ errorMessage, pendingStamp }: { errorMessage?
   const [checking, setChecking] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
 
-  // Full-screen branded loading overlay shown optimistically before a server
-  // action that redirects, so the old page never looks frozen.
+  // Full-screen branded loading overlay. It is shown optimistically before a
+  // server action that redirects, and is hidden ONLY when we stay on this page
+  // (the name step) — never on the redirect itself. On a redirect the overlay
+  // stays up until this whole component unmounts as the new page mounts, so
+  // the previous page is never revealed behind it.
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayMessage, setOverlayMessage] = useState<string | undefined>();
+  const overlayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showOverlay = useCallback((message?: string) => {
+    if (overlayTimer.current) clearTimeout(overlayTimer.current);
     setOverlayMessage(message);
     setOverlayVisible(true);
+    // Safety release: if navigation never happens (e.g. a transport error with
+    // no redirect), drop the overlay so the form stays usable.
+    overlayTimer.current = setTimeout(() => setOverlayVisible(false), 8000);
   }, []);
-  const hideOverlay = useCallback(() => setOverlayVisible(false), []);
+  const hideOverlay = useCallback(() => {
+    if (overlayTimer.current) {
+      clearTimeout(overlayTimer.current);
+      overlayTimer.current = null;
+    }
+    setOverlayVisible(false);
+  }, []);
+  useEffect(() => () => {
+    if (overlayTimer.current) clearTimeout(overlayTimer.current);
+  }, []);
+
+  const [submitting, setSubmitting] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarted, setCameraStarted] = useState(false);
 
@@ -84,29 +103,33 @@ export function DelegateRegister({ errorMessage, pendingStamp }: { errorMessage?
       setChecking(true);
       setScanError(null);
       showOverlay("Checking your badge…");
+
+      let registered = false;
       try {
         const res = await fetch(`/api/delegate/exists?registrationNumber=${encodeURIComponent(trimmed)}`);
         const data = (await res.json()) as { registered?: boolean };
-        if (data.registered) {
-          await stopCamera();
-          showOverlay("Setting you up…");
-          // Resume redirects and never returns; the loading overlay stays up
-          // until the next page mounts and replaces this component.
-          await resume(trimmed);
-        } else {
-          await stopCamera();
-          hideOverlay();
-          setStep("name");
-          setChecking(false);
-        }
+        registered = Boolean(data.registered);
       } catch {
         // Network failure — fall back to asking for the name; the real
         // identify flow will surface any genuine error.
-        await stopCamera();
-        hideOverlay();
-        setStep("name");
-        setChecking(false);
+        registered = false;
       }
+
+      await stopCamera();
+
+      if (registered) {
+        showOverlay("Setting you up…");
+        // resume() triggers a server-action redirect. The loading overlay stays
+        // up until this component unmounts on navigation to the new page. Swallow
+        // the redirect rejection so it isn't surfaced as an error.
+        await resume(trimmed).catch(() => {});
+        return;
+      }
+
+      // Not registered (or lookup failed): reveal the name step on this page.
+      hideOverlay();
+      setStep("name");
+      setChecking(false);
     },
     [resume, stopCamera, checking, showOverlay, hideOverlay],
   );
@@ -203,18 +226,30 @@ export function DelegateRegister({ errorMessage, pendingStamp }: { errorMessage?
   const handleNameSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (overlayVisible) return;
+      if (submitting) return;
+      setSubmitting(true);
       const formData = new FormData(event.currentTarget);
       showOverlay("Setting you up…");
       try {
+        // On success this redirects and navigates away (this component
+        // unmounts, taking the overlay with it). The rejection is only reached
+        // for a non-redirect failure, where we just release the submit guard.
         await identifyDelegateAction(formData);
       } catch {
-        // Non-redirect failure (e.g. network) — reveal the form again.
-        hideOverlay();
+        setSubmitting(false);
       }
     },
-    [overlayVisible, showOverlay, hideOverlay],
+    [submitting, showOverlay],
   );
+
+  const backToCapture = useCallback(() => {
+    setStep("capture");
+    setCode("");
+    setManualCode("");
+    setSubmitting(false);
+    setCameraActive(false);
+    setCameraStarted(false);
+  }, []);
 
   return (
     <section className="card" aria-labelledby="register-title">
@@ -223,11 +258,6 @@ export function DelegateRegister({ errorMessage, pendingStamp }: { errorMessage?
         <span className="badge badge-info">Not registered yet</span>
       </div>
 
-      {pendingStamp ? (
-        <p className="alert alert-info" style={{ marginBottom: "1rem" }}>
-          Register first, then we'll apply your pending station stamp if the QR is still valid.
-        </p>
-      ) : null}
       {errorMessage ? <p className="inline-error" role="alert">{errorMessage}</p> : null}
 
       {step === "capture" ? (
@@ -299,31 +329,25 @@ export function DelegateRegister({ errorMessage, pendingStamp }: { errorMessage?
           )}
         </div>
       ) : (
-        <form onSubmit={handleNameSubmit} className="form" style={{ marginTop: "1.25rem" }}>
-          <input type="hidden" name="badgePayload" value={code} />
+        <div className="register-name-step">
           <p className="lead">Almost there — just tell us who you are.</p>
-          <div className="field">
-            <label className="field-label" htmlFor="fullName">Full name</label>
-            <input id="fullName" name="fullName" className="input" autoComplete="name" placeholder="Jane Doe" required autoFocus />
-          </div>
-          <button type="submit" className="btn btn-primary btn-block">
-            Continue
-          </button>
-          <p className="hint">
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => {
-                setStep("capture");
-                setCode("");
-                setCameraActive(false);
-                setCameraStarted(false);
-              }}
-            >
+          <div className="register-code-readout">
+            <span className="register-code-readout__label">Badge code</span>
+            <span className="register-code-readout__value">{code}</span>
+            <button type="button" className="link-btn" onClick={backToCapture}>
               Use a different code
             </button>
-          </p>
-        </form>
+          </div>
+          <form onSubmit={handleNameSubmit} className="form register-name-pop">
+            <div className="field">
+              <label className="field-label" htmlFor="fullName">Full name</label>
+              <input id="fullName" name="fullName" className="input" autoComplete="name" placeholder="Jane Doe" required autoFocus />
+            </div>
+            <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
+              Continue
+            </button>
+          </form>
+        </div>
       )}
       <LoadingOverlay show={overlayVisible} message={overlayMessage} />
     </section>

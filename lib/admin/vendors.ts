@@ -67,6 +67,12 @@ export async function createVendorAccount({
     return { ok: false, error: validFields.error };
   }
 
+  const existingVendors = await store.listVendorAccounts();
+  const stationTaken = existingVendors.find((v) => v.stationId === validFields.stationId);
+  if (stationTaken) {
+    return { ok: false, error: "That station is already linked to another vendor account." };
+  }
+
   if (!password) {
     return { ok: false, error: "Vendor password is required." };
   }
@@ -114,6 +120,12 @@ export async function editVendorAccount({
   const validFields = validateVendorFields(username, stationId);
   if (!validFields.ok) {
     return { ok: false, error: validFields.error };
+  }
+
+  const others = (await store.listVendorAccounts()).filter((v) => v.id !== normalizedVendorId);
+  const stationTaken = others.find((v) => v.stationId === validFields.stationId);
+  if (stationTaken) {
+    return { ok: false, error: "That station is already linked to another vendor account." };
   }
 
   return {

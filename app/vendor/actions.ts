@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 
 import { VENDOR_SESSION_COOKIE } from "@/app/vendor/session";
 import { authenticateVendor, SupabaseVendorAuthStore } from "@/lib/auth/vendor-auth";
-import { generateStationQr, SupabaseVendorStore } from "@/lib/vendor/portal";
 
 async function currentVendorSessionId() {
   const cookieStore = await cookies();
@@ -35,16 +34,3 @@ export async function loginVendorAction(formData: FormData) {
   redirect("/vendor");
 }
 
-export async function generateStationQrAction() {
-  const result = await generateStationQr({
-    store: new SupabaseVendorStore(),
-    sessionId: await currentVendorSessionId(),
-  });
-
-  if (!result.ok) {
-    const error = result.error === "Participation is closed." ? "participation-closed" : "login-required";
-    redirect(`/vendor?error=${error}`);
-  }
-
-  redirect("/vendor");
-}
