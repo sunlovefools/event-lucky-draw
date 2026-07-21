@@ -28,7 +28,7 @@ export async function loginVendorAction(formData: FormData) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     expires: new Date(result.session.expiresAt),
-    path: "/vendor",
+    path: "/",
   });
 
   redirect("/vendor");

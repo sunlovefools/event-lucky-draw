@@ -66,7 +66,7 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
           <span className="badge badge-info">Scan badge</span>
         </div>
         <p className="hint" style={{ marginTop: "0", marginBottom: "1rem" }}>
-          Scan the delegate&apos;s badge QR (the same one they use to register). The stamp is added to their passport instantly.
+          Scan the delegate&apos;s badge QR (the same one they use to register). The stamp will then be added to their passport instantly.
         </p>
         <VendorScanner participationOpen={participationOpen} />
       </section>

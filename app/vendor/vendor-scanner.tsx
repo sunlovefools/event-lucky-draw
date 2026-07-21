@@ -91,7 +91,7 @@ export function VendorScanner({ participationOpen }: { participationOpen: boolea
       setScanError(null);
       await stopCamera();
       try {
-        const res = await fetch("/api/vendor/scan", {
+        const res = await fetch("/vendor/api/scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ badgePayload: trimmed }),
@@ -110,6 +110,14 @@ export function VendorScanner({ participationOpen }: { participationOpen: boolea
     },
     [busy, router, stopCamera],
   );
+
+  const openManual = useCallback(() => {
+    void stopCamera();
+    setCameraActive(false);
+    setCameraStarted(false);
+    setScanError(null);
+    setMode("manual");
+  }, [stopCamera]);
 
   useEffect(() => {
     if (mode !== "camera" || !cameraActive) return;
@@ -192,24 +200,24 @@ export function VendorScanner({ participationOpen }: { participationOpen: boolea
     );
   }
 
-  const openManual = useCallback(() => {
-    void stopCamera();
-    setCameraActive(false);
-    setCameraStarted(false);
-    setScanError(null);
-    setMode("manual");
-  }, [stopCamera]);
-
   return (
     <div className="register-scan">
       {mode === "camera" ? (
         <>
-          <p className="lead">Scan the delegate&apos;s badge QR</p>
+          <p className="lead">Scan The Delegate&apos;s Conference Badge QR</p>
 
           {!cameraActive ? (
             <div className="camera-idle">
               <div className="badge-illustration" aria-hidden="true">
-                <span className="badge-illustration__scan" />
+                <div className="badge-illustration__badge">
+                  <span className="badge-illustration__ribbon" />
+                  <div className="badge-illustration__card">
+                    <img className="badge-illustration__image" src="/badge-image.png" alt="" />
+                    <span className="badge-illustration__glow" />
+                    <span className="badge-illustration__beam" />
+                  </div>
+                  <span className="badge-illustration__success" />
+                </div>
               </div>
               <button type="button" className="btn btn-primary btn-block camera-allow" onClick={() => setCameraActive(true)}>
                 <svg className="camera-allow__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

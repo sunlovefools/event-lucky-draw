@@ -89,7 +89,7 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
     async getCurrentDrawRound() {
       return { id: "round-1", roundNumber: 1, openedAt: "2025-01-01T00:00:00.000Z", closedAt: null };
     },
-    async listLuckyDrawCandidates(_roundId: string) {
+    async listLuckyDrawCandidates() {
       return [];
     },
     async tryRecordLuckyDrawWinner(delegateId, roundId, wonAt) {
@@ -106,8 +106,8 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
         },
       };
     },
-    async closeCurrentRoundAndOpenNext(nowIso: string) {
-      return { id: "round-2", roundNumber: 2, openedAt: nowIso, closedAt: null };
+    async resetWinnerHistory(nowIso: string) {
+      return { id: "round-1", roundNumber: 1, openedAt: nowIso, closedAt: null };
     },
     async deleteDrawRound(_roundId: string) {
       return;

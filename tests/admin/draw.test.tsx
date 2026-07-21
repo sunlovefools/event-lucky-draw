@@ -107,7 +107,7 @@ describe("lucky draw", () => {
       sessionId: "session-1",
     });
 
-    expect(result).toEqual({ ok: false, error: "No eligible delegates remaining — reset to start a new round." });
+    expect(result).toEqual({ ok: false, error: "No eligible delegates remaining — reset to restore the draw pool." });
   });
 
   it("derives the lucky draw pool from base eligibility (all stamps + survey, with admin override)", () => {
@@ -121,7 +121,7 @@ describe("lucky draw", () => {
     expect(getLuckyDrawPool(participants).map((participant) => participant.id)).toEqual(["delegate-1", "delegate-2"]);
   });
 
-  it("shows the draw controls and round-grouped winner history to admins", () => {
+  it("shows the draw controls and winner history to admins", () => {
     render(
       <AdminDashboard
         dashboard={{
@@ -163,10 +163,10 @@ describe("lucky draw", () => {
 
     expect(screen.getByRole("heading", { name: "Lucky draw" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open draw screen" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Reset & start new round" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset winners" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Winner history" })).toBeInTheDocument();
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
-    expect(screen.getByText(/Round 1/)).toBeInTheDocument();
+    expect(screen.queryByText(/Round 1/)).not.toBeInTheDocument();
 
     expect(screen.getAllByText(/REG-001/).length).toBeGreaterThan(0);
   });

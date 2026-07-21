@@ -712,7 +712,7 @@ dl.health dd {
 /* ============================================================ DRAW STAGE */
     .camera-idle {
       display: grid;
-      gap: 1rem;
+      gap: 0rem;
       justify-items: center;
       animation: float-up 360ms ease both;
     }
@@ -809,44 +809,186 @@ dl.health dd {
   border-radius: var(--radius);
 }
 .badge-illustration {
+  --badge-ink: #111318;
+  --badge-cyan: #35f2ff;
+  --badge-lime: #b6ff4d;
   position: relative;
-  width: 96px;
-  height: 122px;
+  display: grid;
+  place-items: center;
+  width: min(150px, 70vw);
+  min-height: 285px;
   margin: 1rem auto 0;
-  border-radius: 14px;
-  background: var(--gradient-accent);
-  box-shadow: var(--shadow);
-  animation: badge-float 2.4s ease-in-out infinite;
+  perspective: 900px;
 }
-.badge-illustration__scan {
+.badge-illustration__badge {
+  position: relative;
+  width: min(125px, 46vw);
+  transform-origin: 50% 7%;
+  animation: badge-cycle 4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  will-change: transform, opacity;
+}
+.badge-illustration__ribbon {
   position: absolute;
-  left: 10px;
-  right: 10px;
-  top: 14px;
-  height: 3px;
-  border-radius: 3px;
-  background: #ffffff;
-  box-shadow: 0 0 12px 2px rgba(255, 255, 255, 0.85);
-  animation: badge-scan 1.8s ease-in-out infinite;
+  z-index: 0;
+  left: 50%;
+  top: -58px;
+  width: 42px;
+  height: 76px;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 3px solid var(--badge-ink);
+  border-radius: 8px 8px 14px 14px;
+  clip-path: polygon(14% 0, 86% 0, 78% 78%, 50% 100%, 22% 78%);
+  box-shadow: 0 12px 24px rgba(10, 33, 78, 0.14);
 }
-@keyframes badge-float {
-  0%,
-  100% {
-    transform: translateY(0);
+.badge-illustration__ribbon::before {
+  content: "";
+  position: absolute;
+  inset: 8px 12px 20px;
+  border-left: 2px solid rgba(17, 19, 24, 0.22);
+  border-right: 2px solid rgba(17, 19, 24, 0.22);
+}
+.badge-illustration__ribbon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 18px;
+  height: 12px;
+  transform: translateX(-50%);
+  border: 3px solid var(--badge-ink);
+  border-radius: 999px;
+  background: #fff;
+}
+.badge-illustration__card {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  aspect-ratio: 1024 / 1437;
+  border: 3px solid var(--badge-ink);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 28px 70px rgba(10, 34, 86, 0.22), 0 4px 14px rgba(10, 34, 86, 0.12);
+}
+.badge-illustration__image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.badge-illustration__beam {
+  position: absolute;
+  z-index: 4;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  height: 48px;
+  opacity: 0;
+  border-top: 3px solid var(--badge-cyan);
+  background: linear-gradient(180deg, rgba(53, 242, 255, 0.34), rgba(53, 242, 255, 0.11) 52%, rgba(53, 242, 255, 0));
+  box-shadow: 0 -2px 8px rgba(53, 242, 255, 0.9), inset 0 18px 26px rgba(53, 242, 255, 0.06);
+  filter: drop-shadow(0 0 10px rgba(53, 242, 255, 0.92));
+  animation: beam-sweep 4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  pointer-events: none;
+}
+.badge-illustration__glow {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 72%, rgba(53, 242, 255, 0.17), transparent 24%), linear-gradient(180deg, rgba(53, 242, 255, 0.03), rgba(53, 242, 255, 0.1));
+  animation: card-glow 4s ease-in-out infinite;
+  pointer-events: none;
+}
+.badge-illustration__success {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: -28px;
+  width: 32px;
+  aspect-ratio: 1;
+  transform: translateX(-50%) scale(0.35);
+  border-radius: 50%;
+  background: var(--badge-lime);
+  box-shadow: 0 0 0 4px #fff, 0 0 0 7px var(--badge-ink), 0 13px 28px rgba(10, 35, 78, 0.24);
+  opacity: 0;
+  animation: success-pop 4s ease-in-out infinite;
+}
+.badge-illustration__success::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 8px;
+  width: 12px;
+  height: 7px;
+  border-left: 4px solid var(--badge-ink);
+  border-bottom: 4px solid var(--badge-ink);
+  transform: rotate(-45deg);
+}
+@keyframes badge-cycle {
+  0%, 10%, 100% {
+    transform: scale(0.72) translateY(18px) rotate(-1deg);
+    opacity: 0.72;
   }
-  50% {
-    transform: translateY(-6px);
+  24% {
+    transform: scale(0.93) translateY(2px) rotate(1deg);
+    opacity: 1;
+  }
+  35%, 78% {
+    transform: scale(1.02) translateY(-4px) rotate(0);
+    opacity: 1;
+  }
+  88% {
+    transform: scale(0.86) translateY(8px);
+    opacity: 0.9;
   }
 }
-@keyframes badge-scan {
-  0% {
-    top: 14px;
+@keyframes beam-sweep {
+  0%, 30% {
+    top: 8px;
+    opacity: 0;
   }
-  50% {
-    top: 98px;
+  36% {
+    opacity: 1;
+  }
+  68% {
+    top: calc(100% - 54px);
+    opacity: 1;
+  }
+  75%, 100% {
+    top: calc(100% - 54px);
+    opacity: 0;
+  }
+}
+@keyframes card-glow {
+  0%, 30%, 100% {
+    opacity: 0;
+  }
+  38%, 68% {
+    opacity: 1;
+  }
+  76% {
+    opacity: 0;
+  }
+}
+@keyframes success-pop {
+  0%, 68% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.35);
+  }
+  76% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.12);
+  }
+  82%, 90% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
   }
   100% {
-    top: 14px;
+    opacity: 0;
+    transform: translateX(-50%) scale(0.72);
   }
 }
 
@@ -880,6 +1022,28 @@ dl.health dd {
   padding: clamp(2rem, 6vw, 4rem);
   backdrop-filter: blur(6px);
   box-shadow: 0 30px 80px rgb(0 0 0 / 40%);
+}
+.draw-card--fullscreen {
+  width: min(1120px, 96vw);
+  min-height: min(760px, 88vh);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.draw-screen-state {
+  margin-top: clamp(2rem, 6vh, 4rem);
+}
+.draw-idle-message {
+  max-width: 900px;
+  margin: var(--space-4) auto 0;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 6vw, 4.8rem);
+  line-height: 1.08;
+}
+.slot-name {
+  min-height: 1.2em;
+  word-break: break-word;
 }
 .draw-label {
   font-family: var(--font-display);

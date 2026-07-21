@@ -9,12 +9,10 @@ import {
   setParticipationAction,
   updateDelegateNameAction,
 } from "@/app/admin/actions";
-import { DeleteRoundButton } from "@/app/admin/delete-round-button";
 import { friendlyError } from "@/lib/messages";
 import type { AdminDashboardResult } from "@/lib/admin/dashboard";
 import type { DelegateDrawStatus } from "@/lib/admin/participants";
 import type { HealthStatus } from "@/lib/health";
-import type { DrawRoundView } from "@/lib/admin/draw";
 
 
 const DRAW_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -166,11 +164,11 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
         <div className="section-head">
           <h2 id="lucky-draw-title">Lucky draw</h2>
         </div>
-        <p className="muted">Open the draw screen to pick a winner. Reset starts a fresh round so everyone becomes eligible again.</p>
+        <p className="muted">Open the draw screen to pick a winner. Reset clears winner history so everyone becomes eligible again.</p>
         <div className="row" style={{ gap: "0.5rem", marginTop: "1rem" }}>
-          <a href="/admin/draw" className="btn btn-accent">Open draw screen</a>
+          <a href="/display" className="btn btn-accent" target="_blank" rel="noreferrer">Open draw screen</a>
           <form action={resetDrawRoundAction}>
-            <button type="submit" className="btn btn-primary">Reset &amp; start new round</button>
+            <button type="submit" className="btn btn-primary">Reset winners</button>
           </form>
         </div>
       </section>
@@ -181,29 +179,15 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
           <h2 id="winner-history-title">Winner history</h2>
           <span className="badge badge-neutral">{totalWinners}</span>
         </div>
-        {drawRounds.length === 0 ? <p className="empty">No rounds yet.</p> : (
-          <div className="rounds">
-            {drawRounds.map((round) => (
-              <div key={round.id} className="round">
-                <div className="row-between">
-                  <h3>Round {round.roundNumber}{round.isCurrent ? " (current)" : ""}</h3>
-                  {!round.isCurrent ? <DeleteRoundButton roundId={round.id} roundNumber={round.roundNumber} /> : null}
-                </div>
-                {round.winners.length === 0 ? (
-                  <p className="muted">No winners yet.</p>
-                ) : (
-                  <ul className="list">
-                    {round.winners.map((winner) => (
-                      <li key={winner.id} className="list-item">
-                        <span className="list-item-title">{winner.fullName}</span>
-                        <span className="muted nowrap">#{winner.registrationNumber} · {formatTime(winner.wonAt)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+        {totalWinners === 0 ? <p className="empty">No winners yet.</p> : (
+          <ul className="list">
+            {drawRounds.flatMap((draw) => draw.winners).map((winner) => (
+              <li key={winner.id} className="list-item">
+                <span className="list-item-title">{winner.fullName}</span>
+                <span className="muted nowrap">#{winner.registrationNumber} · {formatTime(winner.wonAt)}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
 

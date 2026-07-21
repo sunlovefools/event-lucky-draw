@@ -28,6 +28,7 @@ Hosted Next.js application scaffold for the event station quest lucky draw syste
    ```bash
    npm run dev
    ```
+   This now starts Next dev and prewarms the main app routes so they are compiled up front. If you want the original on-demand dev behavior, use `npm run dev:hot`.
 
 ## Database migrations
 

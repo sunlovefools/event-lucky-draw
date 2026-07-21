@@ -41,7 +41,6 @@ export function AdminOverview({
     .flatMap((r) => r.winners.map((w) => ({ ...w, roundNumber: r.roundNumber })))
     .sort((a, b) => (a.wonAt < b.wonAt ? 1 : -1));
   const recentWinners = allWinners.slice(0, 8);
-  const currentRound = drawRounds.find((r) => r.isCurrent) ?? null;
 
   const statTiles = [
     { icon: IconUsers, label: "Participants", value: participants.length, accent: false },
@@ -146,52 +145,37 @@ export function AdminOverview({
         title="Lucky draw"
         iconAccent
         action={
-          <Link href="/admin/draw" className="icon-btn">
+          <Link href="/display" className="icon-btn" target="_blank" rel="noreferrer">
             <IconArrowRight size={18} />
             Public display
           </Link>
         }
       >
-        {currentRound ? (
-          <>
-            <div className="participation-banner">
-              <p className="participation-banner__meta">
-                Round {currentRound.roundNumber} is open · {currentRound.winners.length} drawn so far
-              </p>
-              <span className="badge badge-success">
-                <span className="dot" />
-                Open round
-              </span>
-            </div>
-            <div className="row" style={{ gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
-              <form action={drawLuckyWinnerAction}>
-                <input type="hidden" name="redirectTo" value="/admin" />
-                <button type="submit" className="btn btn-accent">
-                  <IconTrophy size={18} />
-                  Draw winner
-                </button>
-              </form>
-              <form action={resetDrawRoundAction}>
-                <input type="hidden" name="redirectTo" value="/admin" />
-                <button type="submit" className="btn btn-ghost">
-                  <IconRefresh size={18} />
-                  New round
-                </button>
-              </form>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="muted">No active round. Start one to begin drawing winners.</p>
-            <form action={resetDrawRoundAction} style={{ marginTop: "1rem" }}>
-              <input type="hidden" name="redirectTo" value="/admin" />
-              <button type="submit" className="btn btn-accent">
-                <IconRefresh size={18} />
-                Start first round
-              </button>
-            </form>
-          </>
-        )}
+        <div className="participation-banner">
+          <p className="participation-banner__meta">
+            {allWinners.length} winner{allWinners.length === 1 ? "" : "s"} drawn · winners stay excluded until reset
+          </p>
+          <span className="badge badge-success">
+            <span className="dot" />
+            Ready
+          </span>
+        </div>
+        <div className="row" style={{ gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
+          <form action={drawLuckyWinnerAction}>
+            <input type="hidden" name="redirectTo" value="/admin" />
+            <button type="submit" className="btn btn-accent">
+              <IconTrophy size={18} />
+              Draw winner
+            </button>
+          </form>
+          <form action={resetDrawRoundAction}>
+            <input type="hidden" name="redirectTo" value="/admin" />
+            <button type="submit" className="btn btn-ghost">
+              <IconRefresh size={18} />
+              Reset winners
+            </button>
+          </form>
+        </div>
       </AdminCard>
 
       {/* Recent winners */}
@@ -212,10 +196,8 @@ export function AdminOverview({
           <ul className="list">
             {recentWinners.map((winner) => (
               <li key={winner.id} className="list-item">
-                <div className="row-between">
-                  <span className="list-item-title">{winner.fullName}</span>
-                  <span className="badge badge-accent">Round {winner.roundNumber}</span>
-                </div>
+                <span className="list-item-title">{winner.fullName}</span>
+                <br />
                 <span className="muted nowrap">#{winner.registrationNumber} · {formatTime(winner.wonAt)}</span>
               </li>
             ))}

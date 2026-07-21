@@ -27,14 +27,14 @@ export type LuckyDrawCandidate = {
 
 export type DrawStore = AdminSessionStore & {
   getCurrentDrawRound(): Promise<DrawRound | null>;
-  listLuckyDrawCandidates(roundId: string): Promise<LuckyDrawCandidate[]>;
+  listLuckyDrawCandidates(): Promise<LuckyDrawCandidate[]>;
   tryRecordLuckyDrawWinner(
     delegateId: string,
     roundId: string,
     wonAt: string,
   ): Promise<{ ok: true; winner: AdminWinnerHistoryEntry } | { ok: false; error: "duplicate" | "error" }>;
   listDrawRounds(): Promise<DrawRoundView[]>;
-  closeCurrentRoundAndOpenNext(nowIso: string): Promise<DrawRound>;
+  resetWinnerHistory(nowIso: string): Promise<DrawRound>;
   deleteDrawRound(roundId: string): Promise<void>;
 };
 
@@ -42,8 +42,8 @@ const MAX_DRAW_ATTEMPTS = 10;
 
 // Base eligibility: all active station stamps collected AND the final survey
 // submitted. An admin may override with `eligible` (force include) or
-// `excluded` (force exclude). The "already drawn this round" rule is applied
-// separately, by the candidate query.
+// `excluded` (force exclude). Previous winners are excluded separately by the
+// candidate query until reset clears winner history.
 export function isBaseEligible(input: {
   drawStatus?: string | null;
   stampsCollected: number;
@@ -88,12 +88,12 @@ export async function drawLuckyWinner({
 
   const round = await store.getCurrentDrawRound();
   if (!round) {
-    return { ok: false, error: "No active draw round. Reset to start a new round." };
+    return { ok: false, error: "No active draw session. Reset to restore the draw pool." };
   }
 
-  const candidates = await store.listLuckyDrawCandidates(round.id);
+  const candidates = await store.listLuckyDrawCandidates();
   if (candidates.length === 0) {
-    return { ok: false, error: "No eligible delegates remaining — reset to start a new round." };
+    return { ok: false, error: "No eligible delegates remaining — reset to restore the draw pool." };
   }
 
   const pickFrom = (pool: LuckyDrawCandidate[]) =>
@@ -107,11 +107,11 @@ export async function drawLuckyWinner({
     }
 
     // A concurrent draw claimed this delegate first; reselect from the
-    // remaining, still-eligible pool and try again.
+    // remaining, still-eligible global pool and try again.
     if (recorded.error === "duplicate") {
-      const remaining = (await store.listLuckyDrawCandidates(round.id)).filter((c) => c.id !== chosen.id);
+      const remaining = (await store.listLuckyDrawCandidates()).filter((c) => c.id !== chosen.id);
       if (remaining.length === 0) {
-        return { ok: false, error: "No eligible delegates remaining — reset to start a new round." };
+        return { ok: false, error: "No eligible delegates remaining — reset to restore the draw pool." };
       }
       chosen = pickFrom(remaining);
       continue;
@@ -138,7 +138,7 @@ export async function resetDrawRound({
     return { ok: false, error: "Admin login required." };
   }
 
-  const round = await store.closeCurrentRoundAndOpenNext(nowIso);
+  const round = await store.resetWinnerHistory(nowIso);
   return { ok: true, round };
 }
 
@@ -160,7 +160,7 @@ export async function deleteDrawRound({
   }
 
   if (!roundId) {
-    return { ok: false, error: "Round is required." };
+    return { ok: false, error: "Draw session is required." };
   }
 
   await store.deleteDrawRound(roundId);
@@ -232,29 +232,28 @@ export class SupabaseDrawStore implements DrawStore {
     return data ? roundFromRow(data) : null;
   }
 
-  async listLuckyDrawCandidates(roundId: string): Promise<LuckyDrawCandidate[]> {
+  async listLuckyDrawCandidates(): Promise<LuckyDrawCandidate[]> {
     const { data: delegates, error: delegateError } = await this.supabase.rpc("admin_participant_progress");
     if (delegateError) {
       throw new Error(delegateError.message);
     }
 
-    const { data: winners, error: winnerError } = await this.supabase
-      .from("winner_history")
-      .select("delegate_id")
-      .eq("round_id", roundId);
-
+    const { data: winners, error: winnerError } = await this.supabase.from("winner_history").select("delegate_id");
     if (winnerError) {
       throw new Error(winnerError.message);
     }
 
     const drawnIds = new Set((winners ?? []).map((winner: { delegate_id: string }) => winner.delegate_id));
     return (delegates ?? [])
-      .filter((delegate: CandidateRpcRow) => isBaseEligible({
-                drawStatus: delegate.draw_status,
-                stampsCollected: Number(delegate.stamps_collected),
-                totalActiveStations: Number(delegate.total_active_stations),
-                surveySubmitted: Boolean(delegate.survey_submitted),
-              }) && !drawnIds.has(delegate.id))
+      .filter(
+        (delegate: CandidateRpcRow) =>
+          isBaseEligible({
+            drawStatus: delegate.draw_status,
+            stampsCollected: Number(delegate.stamps_collected),
+            totalActiveStations: Number(delegate.total_active_stations),
+            surveySubmitted: Boolean(delegate.survey_submitted),
+          }) && !drawnIds.has(delegate.id),
+      )
       .map(candidateFromRpcRow);
   }
 
@@ -313,25 +312,18 @@ export class SupabaseDrawStore implements DrawStore {
     }));
   }
 
-  async closeCurrentRoundAndOpenNext(nowIso: string): Promise<DrawRound> {
-    await this.supabase.from("draw_rounds").update({ closed_at: nowIso }).is("closed_at", null);
-
-    const { data: maxRow, error: maxError } = await this.supabase
-      .from("draw_rounds")
-      .select("round_number")
-      .order("round_number", { ascending: false })
-      .limit(1)
-      .maybeSingle<{ round_number: number }>();
-
-    if (maxError) {
-      throw new Error(maxError.message);
+  async resetWinnerHistory(nowIso: string): Promise<DrawRound> {
+    const { error: deleteError } = await this.supabase.from("winner_history").delete().not("id", "is", null);
+    if (deleteError) {
+      throw new Error(deleteError.message);
     }
 
-    const nextNumber = (maxRow?.round_number ?? 0) + 1;
+    const existing = await this.getCurrentDrawRound();
+    if (existing) return existing;
 
     const { data, error } = await this.supabase
       .from("draw_rounds")
-      .insert({ round_number: nextNumber, opened_at: nowIso })
+      .insert({ round_number: 1, opened_at: nowIso })
       .select("id, round_number, opened_at, closed_at")
       .single<DrawRoundRow>();
 
@@ -343,8 +335,6 @@ export class SupabaseDrawStore implements DrawStore {
   }
 
   async deleteDrawRound(roundId: string): Promise<void> {
-    // Remove the round's winners, then the round itself. The current
-    // (open) round is protected by the `closed_at is not null` guard.
     await this.supabase.from("winner_history").delete().eq("round_id", roundId);
     await this.supabase.from("draw_rounds").delete().eq("id", roundId).not("closed_at", "is", null);
   }

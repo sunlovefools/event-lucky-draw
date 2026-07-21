@@ -1,67 +1,97 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Confetti } from "@/app/components/confetti";
 import type { PublicDrawState } from "@/lib/public-draw";
 
 type DisplayPhase = "waiting" | "animating" | "revealed";
 
-const SCRAMBLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-function randomGlyphs(len: number) {
-  let s = "";
-  for (let i = 0; i < len; i++) s += SCRAMBLE[Math.floor(Math.random() * SCRAMBLE.length)];
-  return s;
-}
-
 type Winner = NonNullable<PublicDrawState["winner"]>;
 
+const IDLE_MESSAGE = "Click the button to see who is the lucky one.";
+const FALLBACK_SLOT_NAMES = ["Lucky delegate", "Eligible participant", "Next winner"];
+
+function pickSlotName(names: string[], previous: string) {
+  const pool = names.length > 0 ? names : FALLBACK_SLOT_NAMES;
+  if (pool.length === 1) return pool[0];
+
+  let next = previous;
+  while (next === previous) {
+    next = pool[Math.floor(Math.random() * pool.length)];
+  }
+  return next;
+}
+
 export function AdminDrawScreen({
-  initialState,
-  roundNumber,
+  initialState: _initialState,
+  candidateNames = [],
   pollMs = 3000,
-  revealDelayMs = 2600,
+  minRevealMs = 900,
 }: {
   initialState: PublicDrawState;
-  roundNumber: number;
+  candidateNames?: string[];
   pollMs?: number;
-  revealDelayMs?: number;
+  minRevealMs?: number;
 }) {
-  const [drawState, setDrawState] = useState<PublicDrawState>(initialState);
-  const [phase, setPhase] = useState<DisplayPhase>(initialState.status === "winner" ? "revealed" : "waiting");
-  const [scramble, setScramble] = useState("");
+  // Fresh page loads must always start idle, regardless of any winner the server
+  // may still have in history. Only draws observed after this mount are revealed.
+  const mountedAt = useRef(Date.now());
+  const [drawState, setDrawState] = useState<PublicDrawState>({ status: "waiting", winner: null });
+  const [phase, setPhase] = useState<DisplayPhase>("waiting");
+  const [slotName, setSlotName] = useState(IDLE_MESSAGE);
   const [drawError, setDrawError] = useState<string | null>(null);
   const [drawPending, setDrawPending] = useState(false);
-  const visibleWinnerId = useRef(initialState.winner?.id ?? null);
+  const visibleWinnerId = useRef<string | null>(null);
+  const slotTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const names = useMemo(() => candidateNames.filter(Boolean), [candidateNames]);
 
-  // Poll so a draw triggered from another window still reveals here.
+  function stopSlot() {
+    if (slotTimer.current) {
+      clearInterval(slotTimer.current);
+      slotTimer.current = null;
+    }
+  }
+
+  function startSlot() {
+    stopSlot();
+    setPhase("animating");
+    setSlotName((current) => pickSlotName(names, current));
+    slotTimer.current = setInterval(() => {
+      setSlotName((current) => pickSlotName(names, current));
+    }, 65);
+  }
+
+  function revealWinner(winner: Winner, startedAt = Date.now()) {
+    const remaining = Math.max(0, minRevealMs - (Date.now() - startedAt));
+    setTimeout(() => {
+      stopSlot();
+      visibleWinnerId.current = winner.id;
+      setDrawState({ status: "winner", winner });
+      setSlotName(winner.fullName);
+      setPhase("revealed");
+      setDrawPending(false);
+    }, remaining);
+  }
+
   useEffect(() => {
     let cancelled = false;
-    let revealTimer: ReturnType<typeof setTimeout> | undefined;
-    let scrambleTimer: ReturnType<typeof setInterval> | undefined;
 
     async function poll() {
+      if (drawPending || phase === "animating") return;
       const response = await fetch("/api/draw-state", { cache: "no-store" });
       if (!response.ok) return;
       const next = (await response.json()) as PublicDrawState;
       if (cancelled) return;
 
-      const nextId = next.winner?.id ?? null;
-      if (nextId && nextId !== visibleWinnerId.current) {
-        setDrawState(next);
-        setPhase("animating");
-        if (scrambleTimer) clearInterval(scrambleTimer);
-        scrambleTimer = setInterval(() => setScramble(randomGlyphs(10)), 70);
-        if (revealTimer) clearTimeout(revealTimer);
-        revealTimer = setTimeout(() => {
-          if (scrambleTimer) clearInterval(scrambleTimer);
-          visibleWinnerId.current = nextId;
-          setPhase("revealed");
-        }, revealDelayMs);
-      } else if (!nextId) {
-        if (scrambleTimer) clearInterval(scrambleTimer);
-        visibleWinnerId.current = null;
-        setPhase("waiting");
+      const nextWinner = next.winner;
+      if (!nextWinner) return;
+
+      const wonAfterMount = new Date(nextWinner.wonAt).getTime() >= mountedAt.current;
+      if (wonAfterMount && nextWinner.id !== visibleWinnerId.current) {
+        const startedAt = Date.now();
+        startSlot();
+        revealWinner(nextWinner, startedAt);
       }
     }
 
@@ -69,38 +99,36 @@ export function AdminDrawScreen({
     return () => {
       cancelled = true;
       clearInterval(interval);
-      if (revealTimer) clearTimeout(revealTimer);
-      if (scrambleTimer) clearInterval(scrambleTimer);
+      stopSlot();
     };
-  }, [pollMs, revealDelayMs]);
+  }, [drawPending, phase, pollMs, minRevealMs, names]);
+
+  useEffect(() => () => stopSlot(), []);
 
   async function handleDraw() {
+    const startedAt = Date.now();
     setDrawError(null);
     setDrawPending(true);
-    setPhase("animating");
-    const scrambleTimer = setInterval(() => setScramble(randomGlyphs(10)), 70);
+    setDrawState({ status: "waiting", winner: null });
+    startSlot();
 
     try {
-      const response = await fetch("/api/draw", { method: "POST" });
+      const response = await fetch("/api/draw", { method: "POST", credentials: "include" });
       const result = (await response.json()) as { ok: true; winner: Winner } | { ok: false; error: string };
       if (result.ok) {
-        setTimeout(() => {
-          clearInterval(scrambleTimer);
-          visibleWinnerId.current = result.winner.id;
-          setDrawState({ status: "winner", winner: result.winner });
-          setPhase("revealed");
-          setDrawPending(false);
-        }, revealDelayMs);
+        revealWinner(result.winner, startedAt);
       } else {
-        clearInterval(scrambleTimer);
+        stopSlot();
         setDrawError(result.error);
-        setPhase(drawState.status === "winner" ? "revealed" : "waiting");
+        setSlotName(IDLE_MESSAGE);
+        setPhase("waiting");
         setDrawPending(false);
       }
     } catch {
-      clearInterval(scrambleTimer);
+      stopSlot();
       setDrawError("Could not reach the server.");
-      setPhase(drawState.status === "winner" ? "revealed" : "waiting");
+      setSlotName(IDLE_MESSAGE);
+      setPhase("waiting");
       setDrawPending(false);
     }
   }
@@ -111,29 +139,29 @@ export function AdminDrawScreen({
     <main className="public-stage" id="main" aria-live="polite">
       {phase === "revealed" && winner ? <Confetti /> : null}
 
-      <div className="draw-card">
-        <p className="eyebrow">Admin · Round {roundNumber}</p>
+      <div className="draw-card draw-card--fullscreen">
+        <p className="eyebrow">Admin display</p>
         <h1>Lucky Draw</h1>
 
-        {phase === "waiting" || !winner ? (
-          <div className="center" style={{ marginTop: "2rem" }}>
+        {phase === "waiting" ? (
+          <div className="center draw-screen-state">
             <div className="pulse-ring" />
-            <p className="draw-label">Waiting for the next draw</p>
-            <p className="draw-winner-reg">Press “Draw winner” to pick a lucky delegate.</p>
+            <p className="draw-label">Ready</p>
+            <p className="draw-idle-message">{IDLE_MESSAGE}</p>
           </div>
         ) : null}
 
-        {phase === "animating" && winner ? (
-          <div className="center" style={{ marginTop: "2rem" }}>
-            <p className="draw-label">Round {roundNumber}</p>
-            <p className="shuffle" aria-hidden="true">{scramble || randomGlyphs(10)}</p>
-            <p className="draw-winner-reg">Shuffling eligible delegates…</p>
+        {phase === "animating" ? (
+          <div className="center draw-screen-state">
+            <p className="draw-label">Shuffling eligible participants</p>
+            <p className="shuffle slot-name" aria-hidden="true">{slotName}</p>
+            <p className="draw-winner-reg">Finding the lucky one…</p>
           </div>
         ) : null}
 
         {phase === "revealed" && winner ? (
-          <div className="center reveal" style={{ marginTop: "1.5rem" }}>
-            <p className="draw-label">Round {roundNumber}</p>
+          <div className="center reveal draw-screen-state">
+            <p className="draw-label">The lucky one is</p>
             <p className="draw-winner-name">{winner.fullName}</p>
             <p className="draw-winner-reg">Registration #{winner.registrationNumber}</p>
             <span className="draw-ticket">Winner</span>

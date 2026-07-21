@@ -69,7 +69,7 @@ export async function loginAdminAction(formData: FormData) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     expires: new Date(result.session.expiresAt),
-    path: "/admin",
+    path: "/",
   });
 
   redirect("/admin");
@@ -77,6 +77,7 @@ export async function loginAdminAction(formData: FormData) {
 
 export async function logoutAdminAction() {
   const cookieStore = await cookies();
+  cookieStore.delete({ name: ADMIN_SESSION_COOKIE, path: "/" });
   cookieStore.delete({ name: ADMIN_SESSION_COOKIE, path: "/admin" });
   redirect("/admin");
 }

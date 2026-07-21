@@ -1,8 +1,9 @@
 import React from "react";
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { VendorPortal } from "@/app/vendor/vendor-portal";
+import { VendorScanner } from "@/app/vendor/vendor-scanner";
 import { getVendorDashboard, collectStampFromVendorScan } from "@/lib/vendor/portal";
 import { createStore } from "./test-stores";
 
@@ -213,5 +214,24 @@ describe("vendor portal UI", () => {
 
     expect(screen.getByText(/Participation is closed, so stamps can't be collected/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Allow camera access" })).not.toBeInTheDocument();
+  });
+
+  it("shows the result banner after manually stamping without changing the hook order", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      json: async () => ({ ok: true, duplicate: false, message: "Stamped Ada Lovelace." }),
+    } as Response);
+
+    try {
+      render(<VendorScanner participationOpen={true} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Type code instead" }));
+      fireEvent.change(screen.getByLabelText("Badge code"), { target: { value: "REG-001" } });
+      fireEvent.click(screen.getByRole("button", { name: "Stamp delegate" }));
+
+      await waitFor(() => expect(screen.getByText(/Stamped Ada Lovelace/i)).toBeInTheDocument());
+      expect(fetchMock).toHaveBeenCalledWith("/vendor/api/scan", expect.objectContaining({ method: "POST" }));
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 });

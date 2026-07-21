@@ -49,31 +49,34 @@ describe("admin lucky draw display", () => {
   });
 
   it("shows the admin draw control", () => {
-    render(<AdminDrawScreen initialState={{ status: "waiting", winner: null }} roundNumber={1} />);
+    render(<AdminDrawScreen initialState={{ status: "waiting", winner: null }} />);
 
     expect(screen.getByRole("heading", { name: "Lucky Draw" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Draw winner" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
   });
 
   it("polls for draw state, animates new winners, then reveals the latest winner", async () => {
     vi.useFakeTimers();
     const fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ status: "winner", winner }),
+      json: async () => ({
+        status: "winner",
+        winner: { ...winner, wonAt: new Date(Date.now() + 1000).toISOString() },
+      }),
     });
     vi.stubGlobal("fetch", fetch);
 
-    render(<AdminDrawScreen initialState={{ status: "waiting", winner: null }} roundNumber={1} pollMs={3000} revealDelayMs={2000} />);
+    render(<AdminDrawScreen initialState={{ status: "waiting", winner: null }} pollMs={3000} minRevealMs={2000} />);
 
-    expect(screen.getByText("Waiting for the next draw")).toBeInTheDocument();
+    expect(screen.getByText("Click the button to see who is the lucky one.")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000);
     });
 
     expect(fetch).toHaveBeenCalledWith("/api/draw-state", { cache: "no-store" });
-    expect(screen.getByText("Shuffling eligible delegates…")).toBeInTheDocument();
-    expect(screen.getByText("Round 1")).toBeInTheDocument();
+    expect(screen.getByText("Shuffling eligible participants")).toBeInTheDocument();
     expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
 
     await act(async () => {
