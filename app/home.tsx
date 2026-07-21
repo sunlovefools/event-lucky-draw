@@ -5,14 +5,7 @@ import { logoutDelegateAction } from "@/app/delegate/actions";
 import { friendlyError } from "@/lib/messages";
 import type { DelegateHomeResult } from "@/lib/delegate";
 import { DelegateRegister } from "@/app/components/delegate-register";
-
-function CheckIcon() {
-  return (
-    <svg className="stamp-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
+import { DelegateStamps } from "@/app/components/delegate-stamps";
 
 export async function Home({
   delegateHomePromise = Promise.resolve({ identified: false }),
@@ -76,22 +69,7 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
           <span style={{ width: `${pct}%` }} />
         </div>
 
-        <div className="stamp-grid" style={{ marginTop: "1.5rem" }}>
-          {progress.stations.map((station) => (
-            <div key={station.id} className={`stamp ${station.completed ? "stamp-done" : ""}`}>
-              {station.completed ? (
-                <CheckIcon />
-              ) : (
-                <span
-                  className="stamp-check"
-                  style={{ background: "transparent", border: "2px dashed var(--color-border-strong)", color: "var(--color-muted)" }}
-                  aria-hidden="true"
-                />
-              )}
-              <span className="stamp-name">{station.name}</span>
-            </div>
-          ))}
-        </div>
+        <DelegateStamps delegateId={delegate.id} stations={progress.stations} />
 
         {allDone ? (
           <p className="alert alert-success" style={{ marginTop: "1.25rem" }}>
