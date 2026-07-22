@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+
+import { LoadingOverlay } from "@/app/components/loading-overlay";
 
 type ScanResult =
   | { ok: true; duplicate: boolean; message: string }
@@ -53,14 +55,34 @@ function ResultBanner({ result }: { result: ScanResult }) {
 
 export function VendorScanner({ participationOpen }: { participationOpen: boolean }) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("camera");
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarted, setCameraStarted] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [overlayVisible, setOverlayVisible] = useState(false);
+  const [overlayMessage, setOverlayMessage] = useState<string | undefined>();
+  const overlayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scannerRef = useRef<ScannerLike | null>(null);
+  const scanInFlightRef = useRef(false);
+
+  const showOverlay = useCallback((message?: string) => {
+    if (overlayTimer.current) clearTimeout(overlayTimer.current);
+    setOverlayMessage(message);
+    setOverlayVisible(true);
+    overlayTimer.current = setTimeout(() => setOverlayVisible(false), 6000);
+  }, []);
+  const hideOverlay = useCallback(() => {
+    if (overlayTimer.current) clearTimeout(overlayTimer.current);
+    overlayTimer.current = null;
+    setOverlayVisible(false);
+  }, []);
+  useEffect(() => () => {
+    if (overlayTimer.current) clearTimeout(overlayTimer.current);
+  }, []);
 
   const stopCamera = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -80,16 +102,31 @@ export function VendorScanner({ participationOpen }: { participationOpen: boolea
     setCameraStarted(false);
     setScanError(null);
     setResult(null);
+    scanInFlightRef.current = false;
+    hideOverlay();
     setMode("camera");
-  }, [stopCamera]);
+  }, [stopCamera, hideOverlay]);
 
   const handlePayload = useCallback(
     async (payload: string) => {
       const trimmed = payload.trim();
-      if (!trimmed || busy) return;
+      if (!trimmed || scanInFlightRef.current) return;
+      scanInFlightRef.current = true;
       setBusy(true);
       setScanError(null);
-      await stopCamera();
+      showOverlay("Stamping delegate…");
+
+      // Paint the transparent loader before releasing the camera or calling the
+      // scan API, so lower-end phones do not look frozen after a QR is captured.
+      await new Promise<void>((resolve) => {
+        if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+          setTimeout(resolve, 0);
+          return;
+        }
+        window.requestAnimationFrame(() => resolve());
+      });
+
+      const stopCameraPromise = stopCamera();
       try {
         const res = await fetch("/vendor/api/scan", {
           method: "POST",
@@ -97,18 +134,23 @@ export function VendorScanner({ participationOpen }: { participationOpen: boolea
           body: JSON.stringify({ badgePayload: trimmed }),
         });
         const data = (await res.json()) as ScanResult;
+        await stopCameraPromise;
+        hideOverlay();
         setResult(data);
         if (data.ok) {
-          // Refresh the server tree so the scan-history list updates immediately.
-          router.refresh();
+          // Refresh the server tree in a transition so the success message paints
+          // immediately; the scan-history list catches up without blocking input.
+          startTransition(() => router.refresh());
         }
       } catch {
+        await stopCameraPromise;
+        hideOverlay();
         setResult({ ok: false, reason: "error", error: "Couldn't reach the server. Try again." });
       } finally {
         setBusy(false);
       }
     },
-    [busy, router, stopCamera],
+    [router, stopCamera, showOverlay, hideOverlay, startTransition],
   );
 
   const openManual = useCallback(() => {
@@ -276,6 +318,7 @@ export function VendorScanner({ participationOpen }: { participationOpen: boolea
           </p>
         </>
       )}
+      <LoadingOverlay show={overlayVisible} message={overlayMessage} variant="translucent" />
     </div>
   );
 }

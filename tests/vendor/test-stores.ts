@@ -27,11 +27,8 @@ export function createStore(overrides: Partial<VendorTestStore> = {}): VendorTes
     async findDelegateByRegistrationNumber() {
       return null;
     },
-    async hasDelegateStamp() {
-      return false;
-    },
-    async createDelegateStamp(delegateId, stationId, collectedAt) {
-      return { id: "stamp-1", delegateId, stationId, collectedAt };
+    async createDelegateStampIfMissing(delegateId, stationId, collectedAt) {
+      return { created: true, stamp: { id: "stamp-1", delegateId, stationId, collectedAt } };
     },
     async recordScanAuditLog() {},
     ...overrides,

@@ -248,9 +248,7 @@ export class SupabaseDelegateStore implements DelegateStore {
       throw new Error(error.message);
     }
 
-            
-
-        return data ? delegateFromRow(data) : null;
+    return data ? delegateFromRow(data) : null;
   }
 
   async createDelegate(delegate: { registrationNumber: string; fullName: string }): Promise<Delegate> {
@@ -339,32 +337,25 @@ export class SupabaseDelegateStore implements DelegateStore {
       throw new Error(surveyResult.error.message);
     }
 
-            const drawStatus = delegateResult.data.draw_status;
-        let eligible: boolean;
-        if (drawStatus === "eligible") {
-          eligible = true;
-        } else if (drawStatus === "excluded") {
-          eligible = false;
-        } else {
-          const submitted = Boolean(surveyResult.data);
-          const { data: activeStations } = await this.supabase
-            .from("stations")
-            .select("id")
-            .eq("active", true);
-          const activeIds = (activeStations ?? []).map((station) => station.id);
-          const { count: stampCount } = await this.supabase
-            .from("delegate_station_stamps")
-            .select("*", { count: "exact", head: true })
-            .eq("delegate_id", delegateId)
-            .in("station_id", activeIds);
-          const hasAllStamps = activeIds.length > 0 && (stampCount ?? 0) >= activeIds.length;
-          eligible = submitted && hasAllStamps;
-        }
+    const drawStatus = delegateResult.data.draw_status;
+    const eligibleAt = delegateResult.data.eligible_at ?? null;
+    let eligible: boolean;
+    if (drawStatus === "eligible") {
+      eligible = true;
+    } else if (drawStatus === "excluded") {
+      eligible = false;
+    } else {
+      // Eligibility is written when the final survey is submitted after all
+      // active stations are complete. Do not re-count stations here: the home
+      // page already has the current station progress, and avoiding those two
+      // extra queries keeps delegate sign-in/reload fast under event traffic.
+      eligible = Boolean(eligibleAt);
+    }
 
-        return {
-          submitted: Boolean(surveyResult.data),
-          eligible,
-          eligibleAt: delegateResult.data.eligible_at ?? null,
-        };
+    return {
+      submitted: Boolean(surveyResult.data),
+      eligible,
+      eligibleAt,
+    };
   }
 }

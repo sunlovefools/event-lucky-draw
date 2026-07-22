@@ -86,8 +86,8 @@ describe("vendor stamp scan", () => {
           expect(reg).toBe("REG-001");
           return { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" };
         },
-        async hasDelegateStamp() {
-          return false;
+        async createDelegateStampIfMissing(delegateId, stationId, collectedAt) {
+          return { created: true, stamp: { id: "stamp-1", delegateId, stationId, collectedAt } };
         },
       }),
       session: vendorSession,
@@ -108,8 +108,8 @@ describe("vendor stamp scan", () => {
         async findDelegateByRegistrationNumber() {
           return { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" };
         },
-        async hasDelegateStamp() {
-          return true;
+        async createDelegateStampIfMissing() {
+          return { created: false, stamp: null };
         },
       }),
       session: vendorSession,

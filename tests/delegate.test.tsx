@@ -1,6 +1,6 @@
 import React from "react";
-import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { Home } from "@/app/home";
 import {
@@ -304,6 +304,24 @@ describe("delegate home UI", () => {
     expect(screen.getByText("Requesting camera permission…")).toBeInTheDocument();
   });
 
+  it("keeps the scanned badge payload when a first-time delegate enters their name", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      json: async () => ({ registered: false }),
+    } as Response);
+
+    render(await Home({
+      delegateHomePromise: Promise.resolve({ identified: false }),
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Type code instead" }));
+    fireEvent.change(screen.getByLabelText("Badge code"), { target: { value: "DLGT0224" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Full name")).toBeInTheDocument());
+    expect(document.querySelector<HTMLInputElement>('input[name="badgePayload"]')?.value).toBe("DLGT0224");
+
+    fetchMock.mockRestore();
+  });
 
   it("welcomes back remembered delegates", async () => {
     render(await Home({

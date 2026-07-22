@@ -51,6 +51,11 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
     // navigation normally unmounts this component before the timer fires.
     overlayTimer.current = setTimeout(() => setOverlayVisible(false), 6000);
   }, []);
+  const hideOverlay = useCallback(() => {
+    if (overlayTimer.current) clearTimeout(overlayTimer.current);
+    overlayTimer.current = null;
+    setOverlayVisible(false);
+  }, []);
   useEffect(() => () => {
     if (overlayTimer.current) clearTimeout(overlayTimer.current);
   }, []);
@@ -61,6 +66,7 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
 
   // html5-qrcode is browser-only and is created on demand inside an effect.
   const scannerRef = useRef<ScannerLike | null>(null);
+  const scanInFlightRef = useRef(false);
 
   const stopCamera = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -91,12 +97,26 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
   const handleCode = useCallback(
     async (value: string) => {
       const trimmed = value.trim();
-      if (!trimmed || checking) return;
+      if (!trimmed || scanInFlightRef.current) return;
+      scanInFlightRef.current = true;
       setCode(trimmed);
       setChecking(true);
       setScanError(null);
+      showOverlay("Checking your badge…");
+
+      // Let the transparent loader paint before we do the camera shutdown and
+      // registration lookup. On slower phones this avoids the scanned frame
+      // feeling frozen while the browser releases the camera stream.
+      await new Promise<void>((resolve) => {
+        if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+          setTimeout(resolve, 0);
+          return;
+        }
+        window.requestAnimationFrame(() => resolve());
+      });
 
       let registered = false;
+      const stopCameraPromise = stopCamera();
       try {
         const res = await fetch(`/api/delegate/exists?registrationNumber=${encodeURIComponent(trimmed)}`);
         const data = (await res.json()) as { registered?: boolean };
@@ -107,7 +127,7 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
         registered = false;
       }
 
-      await stopCamera();
+      await stopCameraPromise;
 
       if (registered) {
         showOverlay("Setting you up…");
@@ -119,10 +139,11 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
       }
 
       // Not registered (or lookup failed): reveal the name step on this page.
+      hideOverlay();
       setStep("name");
       setChecking(false);
     },
-    [resume, stopCamera, checking, showOverlay],
+    [resume, stopCamera, showOverlay, hideOverlay],
   );
 
   // Start the camera only after the user taps "Allow camera access"
@@ -238,9 +259,11 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
     setCode("");
     setManualCode("");
     setSubmitting(false);
+    scanInFlightRef.current = false;
+    hideOverlay();
     setCameraActive(false);
     setCameraStarted(false);
-  }, []);
+  }, [hideOverlay]);
 
   return (
     <section className="card" aria-labelledby="register-title">
@@ -341,6 +364,7 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
             </button>
           </div>
           <form onSubmit={handleNameSubmit} className="form register-name-pop">
+            <input type="hidden" name="badgePayload" value={code} />
             <div className="field">
               <label className="field-label" htmlFor="fullName">Full name</label>
               <input id="fullName" name="fullName" className="input" autoComplete="name" placeholder="Jane Doe" required autoFocus />
@@ -351,7 +375,7 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
           </form>
         </div>
       )}
-      <LoadingOverlay show={overlayVisible} message={overlayMessage} />
+      <LoadingOverlay show={overlayVisible} message={overlayMessage} variant="translucent" />
     </section>
   );
 }

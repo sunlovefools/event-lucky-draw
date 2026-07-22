@@ -1288,6 +1288,18 @@ dl.health dd {
       pointer-events: auto;
       transition: opacity 120ms ease;
     }
+    .loading-overlay--translucent {
+      background: rgba(248, 250, 252, 0.62);
+      backdrop-filter: blur(3px);
+    }
+    .loading-overlay--translucent .brand-loader {
+      width: min(18rem, calc(100vw - 3rem));
+      padding: 1.35rem 1.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: var(--shadow-lg);
+    }
 
     .brand-loader {
       display: grid;

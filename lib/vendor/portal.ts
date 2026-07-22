@@ -52,8 +52,7 @@ export type VendorPortalStore = VendorSessionStore & {
   readParticipationOpen(): Promise<boolean>;
   listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]>;
   findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null>;
-  hasDelegateStamp(delegateId: string, stationId: string): Promise<boolean>;
-  createDelegateStamp(delegateId: string, stationId: string, collectedAt: string): Promise<VendorScanDelegateStamp>;
+  createDelegateStampIfMissing(delegateId: string, stationId: string, collectedAt: string): Promise<{ created: boolean; stamp: VendorScanDelegateStamp | null }>;
   recordScanAuditLog(log: VendorScanAuditLogInput): Promise<void>;
 };
 
@@ -115,8 +114,8 @@ export async function collectStampFromVendorScan({
   }
 
   const stationId = session.vendor.station.id;
-  const alreadyStamped = await store.hasDelegateStamp(delegate.id, stationId);
-  if (alreadyStamped) {
+  const stampResult = await store.createDelegateStampIfMissing(delegate.id, stationId, scannedAt);
+  if (!stampResult.created) {
     await store.recordScanAuditLog({
       delegateId: delegate.id,
       stationId,
@@ -124,7 +123,7 @@ export async function collectStampFromVendorScan({
       result: "duplicate",
       consumed: true,
       scannedAt,
-    });
+    }).catch(() => {});
     return {
       ok: true,
       delegate: { fullName: delegate.fullName },
@@ -133,7 +132,6 @@ export async function collectStampFromVendorScan({
     };
   }
 
-  await store.createDelegateStamp(delegate.id, stationId, scannedAt);
   await store.recordScanAuditLog({
     delegateId: delegate.id,
     stationId,
@@ -141,7 +139,7 @@ export async function collectStampFromVendorScan({
     result: "success",
     consumed: true,
     scannedAt,
-  });
+  }).catch(() => {});
 
   return {
     ok: true,
@@ -227,33 +225,21 @@ export class SupabaseVendorStore implements VendorPortalStore {
     return data ? delegateFromRow(data) : null;
   }
 
-  async hasDelegateStamp(delegateId: string, stationId: string): Promise<boolean> {
+  async createDelegateStampIfMissing(delegateId: string, stationId: string, collectedAt: string): Promise<{ created: boolean; stamp: VendorScanDelegateStamp | null }> {
     const { data, error } = await this.supabase
       .from("delegate_station_stamps")
-      .select("id")
-      .eq("delegate_id", delegateId)
-      .eq("station_id", stationId)
-      .maybeSingle<{ id: string }>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return Boolean(data);
-  }
-
-  async createDelegateStamp(delegateId: string, stationId: string, collectedAt: string): Promise<VendorScanDelegateStamp> {
-    const { data, error } = await this.supabase
-      .from("delegate_station_stamps")
-      .insert({ delegate_id: delegateId, station_id: stationId, collected_at: collectedAt })
+      .upsert(
+        { delegate_id: delegateId, station_id: stationId, collected_at: collectedAt },
+        { onConflict: "delegate_id,station_id", ignoreDuplicates: true },
+      )
       .select("id, delegate_id, station_id, collected_at")
-      .single<VendorScanDelegateStampRow>();
+      .maybeSingle<VendorScanDelegateStampRow>();
 
     if (error) {
       throw new Error(error.message);
     }
 
-    return stampFromRow(data);
+    return data ? { created: true, stamp: stampFromRow(data) } : { created: false, stamp: null };
   }
 
   async recordScanAuditLog(log: VendorScanAuditLogInput): Promise<void> {

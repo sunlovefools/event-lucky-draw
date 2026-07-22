@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { VENDOR_SESSION_COOKIE } from "@/app/vendor/session";
 import { requireVendorSession, SupabaseVendorAuthStore } from "@/lib/auth/vendor-auth";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { collectStampFromVendorScan, SupabaseVendorStore } from "@/lib/vendor/portal";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +11,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const cookieStore = await cookies();
   const sessionId = cookieStore.get(VENDOR_SESSION_COOKIE)?.value;
+  const supabase = createSupabaseBrowserClient();
   const session = await requireVendorSession({
-    store: new SupabaseVendorAuthStore(),
+    store: new SupabaseVendorAuthStore(supabase),
     sessionId,
     nowIso: new Date().toISOString(),
   });
@@ -37,7 +39,7 @@ export async function POST(request: Request) {
   }
 
   const result = await collectStampFromVendorScan({
-    store: new SupabaseVendorStore(),
+    store: new SupabaseVendorStore(supabase),
     session,
     badgePayload,
   });
