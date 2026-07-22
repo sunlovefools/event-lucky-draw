@@ -67,6 +67,15 @@ export type VendorPortalStore = VendorSessionStore & {
   recordScanAuditLog(log: VendorScanAuditLogInput): Promise<void>;
 };
 
+function normalizeStationNameFromRoute(stationName: string) {
+  const trimmed = stationName.trim();
+  try {
+    return decodeURIComponent(trimmed).trim();
+  } catch {
+    return trimmed;
+  }
+}
+
 export async function getStationDashboard({
   store,
   stationName,
@@ -74,7 +83,7 @@ export async function getStationDashboard({
   store: VendorPortalStore;
   stationName: string;
 }): Promise<StationDashboardResult> {
-  const station = await store.findStationByName(stationName.trim());
+  const station = await store.findStationByName(normalizeStationNameFromRoute(stationName));
   if (!station) {
     return { found: false };
   }

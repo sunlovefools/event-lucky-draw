@@ -66,7 +66,7 @@ describe("vendor portal dashboard", () => {
           ];
         },
       }),
-      stationName: "AI Booth",
+      stationName: "AI%20Booth",
     });
 
     expect(result).toMatchObject({
