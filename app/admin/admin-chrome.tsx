@@ -9,7 +9,7 @@ import {
   IconDashboard,
   IconUsers,
   IconStore,
-  IconIdCard,
+
   IconScan,
   IconTrophy,
   IconReport,
@@ -22,15 +22,14 @@ type NavItem = {
   href: string;
   label: string;
   Icon: (p: { size?: number; className?: string }) => React.ReactElement;
-  countKey?: "participants" | "stations" | "vendors" | "scan" | "winners";
+  countKey?: "participants" | "stations" | "scan" | "winners";
   exact?: boolean;
 };
 
 const NAV: NavItem[] = [
   { href: "/admin", label: "Overview", Icon: IconDashboard, exact: true },
   { href: "/admin/participants", label: "Participants", Icon: IconUsers, countKey: "participants" },
-  { href: "/admin/stations", label: "Stations", Icon: IconStore, countKey: "stations" },
-  { href: "/admin/vendors", label: "Vendors", Icon: IconIdCard, countKey: "vendors" },
+  { href: "/admin/stations", label: "Exhibition stations", Icon: IconStore, countKey: "stations" },
   { href: "/admin/scan-audit", label: "Scan audit", Icon: IconScan, countKey: "scan" },
   { href: "/admin/winners", label: "Winners", Icon: IconTrophy, countKey: "winners" },
   { href: "/admin/reports", label: "Reports", Icon: IconReport },
@@ -39,8 +38,7 @@ const NAV: NavItem[] = [
 const TITLES: Record<string, string> = {
   "/admin": "Overview",
   "/admin/participants": "Participants",
-  "/admin/stations": "Stations",
-  "/admin/vendors": "Vendors",
+  "/admin/stations": "Exhibition stations",
   "/admin/scan-audit": "Scan audit",
   "/admin/winners": "Winners",
   "/admin/reports": "Reports",

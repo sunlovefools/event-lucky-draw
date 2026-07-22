@@ -8,7 +8,17 @@ import {
   type ValidVendorSession,
 } from "@/lib/auth/vendor-auth";
 import { type Delegate, extractRegistrationNumberFromBadgePayload } from "@/lib/delegate";
+import { stationFromRow, type Station } from "@/lib/shared/station";
 import { delegateFromRow } from "@/lib/delegate-session";
+
+export type StationDashboardResult =
+  | { found: false }
+  | {
+      found: true;
+      station: Station;
+      participationOpen: boolean;
+      scanHistory: StationScanHistoryEntry[];
+    };
 
 export type VendorDashboardResult =
   | { authorized: false }
@@ -50,11 +60,32 @@ export type VendorScanResult =
 
 export type VendorPortalStore = VendorSessionStore & {
   readParticipationOpen(): Promise<boolean>;
+  findStationByName(stationName: string): Promise<Station | null>;
   listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]>;
   findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null>;
   createDelegateStampIfMissing(delegateId: string, stationId: string, collectedAt: string): Promise<{ created: boolean; stamp: VendorScanDelegateStamp | null }>;
   recordScanAuditLog(log: VendorScanAuditLogInput): Promise<void>;
 };
+
+export async function getStationDashboard({
+  store,
+  stationName,
+}: {
+  store: VendorPortalStore;
+  stationName: string;
+}): Promise<StationDashboardResult> {
+  const station = await store.findStationByName(stationName.trim());
+  if (!station) {
+    return { found: false };
+  }
+
+  const [participationOpen, scanHistory] = await Promise.all([
+    store.readParticipationOpen(),
+    store.listStationScanHistory(station.id),
+  ]);
+
+  return { found: true, station, participationOpen, scanHistory };
+}
 
 export async function getVendorDashboard({
   store,
@@ -85,14 +116,14 @@ export async function getVendorDashboard({
   };
 }
 
-export async function collectStampFromVendorScan({
+export async function collectStampForStationScan({
   store,
-  session,
+  station,
   badgePayload,
   now = () => new Date(),
 }: {
   store: VendorPortalStore;
-  session: ValidVendorSession;
+  station: Station;
   badgePayload: string;
   now?: () => Date;
 }): Promise<VendorScanResult> {
@@ -113,7 +144,7 @@ export async function collectStampFromVendorScan({
     return { ok: false, reason: "not-registered", error: "Delegate not registered — ask them to register first." };
   }
 
-  const stationId = session.vendor.station.id;
+  const stationId = station.id;
   const stampResult = await store.createDelegateStampIfMissing(delegate.id, stationId, scannedAt);
   if (!stampResult.created) {
     await store.recordScanAuditLog({
@@ -147,6 +178,20 @@ export async function collectStampFromVendorScan({
     duplicate: false,
     message: `Successful Stamped ${delegate.fullName} QR! Ask him/her to refresh their page to look at the stamp!`,
   };
+}
+
+export async function collectStampFromVendorScan({
+  store,
+  session,
+  badgePayload,
+  now = () => new Date(),
+}: {
+  store: VendorPortalStore;
+  session: ValidVendorSession;
+  badgePayload: string;
+  now?: () => Date;
+}): Promise<VendorScanResult> {
+  return collectStampForStationScan({ store, station: session.vendor.station, badgePayload, now });
 }
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
@@ -195,6 +240,20 @@ export class SupabaseVendorStore implements VendorPortalStore {
 
   async readParticipationOpen(): Promise<boolean> {
     return queryParticipationOpen(this.supabase);
+  }
+
+  async findStationByName(stationName: string): Promise<Station | null> {
+    const { data, error } = await this.supabase
+      .from("stations")
+      .select("id, name, active")
+      .eq("name", stationName)
+      .maybeSingle<{ id: string; name: string; active: boolean }>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data ? stationFromRow(data) : null;
   }
 
   async listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]> {

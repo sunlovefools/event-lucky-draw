@@ -1,11 +1,9 @@
 import React from "react";
 
 import { RefreshButton } from "@/app/components/refresh-button";
-import { logoutVendorAction } from "@/app/vendor/actions";
 import { VendorScanner } from "@/app/vendor/vendor-scanner";
 import { friendlyError } from "@/lib/messages";
-import { VendorLoginForm } from "@/app/vendor/vendor-login-form";
-import type { VendorDashboardResult } from "@/lib/vendor/portal";
+import type { StationDashboardResult } from "@/lib/vendor/portal";
 
 function formatTime(iso: string) {
   try {
@@ -15,17 +13,14 @@ function formatTime(iso: string) {
   }
 }
 
-export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardResult; error?: string }) {
-  if (!dashboard.authorized) {
-    const errorMessage = friendlyError(error);
+export function VendorPortal({ dashboard, error }: { dashboard: StationDashboardResult; error?: string }) {
+  if (!dashboard.found) {
     return (
       <main className="shell" id="main">
-        <section className="hero" aria-labelledby="vendor-login-title">
-          <p className="eyebrow">Vendor</p>
-          <h1 id="vendor-login-title">Vendor login</h1>
-          <p className="lead">Sign in to stamp delegates at your station.</p>
-          {errorMessage ? <p className="alert alert-danger" role="alert">{errorMessage}</p> : null}
-          <VendorLoginForm />
+        <section className="hero" aria-labelledby="station-not-found-title">
+          <p className="eyebrow">Exhibition station</p>
+          <h1 id="station-not-found-title">Station not found</h1>
+          <p className="lead">Check the station link or ask an event organizer for help.</p>
         </section>
       </main>
     );
@@ -39,7 +34,7 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
       <section className="hero" aria-labelledby="vendor-station-title">
         <div className="row-between">
           <div>
-            <p className="eyebrow">Vendor station</p>
+            <p className="eyebrow">Exhibition station</p>
             <h1 id="vendor-station-title">{station.name}</h1>
           </div>
           <div className="head-actions">
@@ -47,14 +42,9 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
               <span className="dot" />
               {participationOpen ? "Participation open" : "Participation closed"}
             </span>
-            <form action={logoutVendorAction}>
-              <button type="submit" className="btn btn-danger">
-                Log out
-              </button>
-            </form>
           </div>
         </div>
-        <p className="lead">Signed in as {dashboard.vendor.username}.</p>
+        <p className="lead">Use this station link to stamp delegates.</p>
         {errorMessage ? <p className="alert alert-danger" role="alert" style={{ marginTop: "1rem" }}>{errorMessage}</p> : null}
       </section>
 
@@ -66,7 +56,7 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
         <p className="hint" style={{ marginTop: "0", marginBottom: "1rem" }}>
           Scan the delegate&apos;s badge QR (the same one they use to register). The stamp will then be added to their passport instantly.
         </p>
-        <VendorScanner participationOpen={participationOpen} />
+        <VendorScanner participationOpen={participationOpen} stationName={station.name} />
       </section>
 
       <section className="card" aria-labelledby="scan-history-title">
@@ -95,3 +85,4 @@ export function VendorPortal({ dashboard, error }: { dashboard: VendorDashboardR
     </main>
   );
 }
+

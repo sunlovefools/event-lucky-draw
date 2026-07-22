@@ -11,14 +11,12 @@ import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
 export const dynamic = "force-dynamic";
 
-type StationFilter = "all" | "active" | "inactive" | "linked" | "unlinked";
+type StationFilter = "all" | "active" | "inactive";
 
 const FILTERS: Array<{ value: StationFilter; label: string }> = [
-  { value: "all", label: "All stations" },
+  { value: "all", label: "All exhibition stations" },
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
-  { value: "linked", label: "Linked to vendor" },
-  { value: "unlinked", label: "Not linked" },
 ];
 
 export default async function StationsPage({
@@ -36,7 +34,6 @@ export default async function StationsPage({
 
   if (!dashboard.authorized) redirect("/admin?error=login-required");
 
-  const linkedStationIds = new Set(dashboard.vendorAccounts.map((v) => v.stationId));
   const q = (params?.q ?? "").trim().toLowerCase();
   const requestedFilter = params?.filter ?? "all";
   const filter: StationFilter = FILTERS.some((item) => item.value === requestedFilter)
@@ -45,19 +42,14 @@ export default async function StationsPage({
 
   const totalStations = dashboard.stations.length;
   const activeStations = dashboard.stations.filter((station) => station.active).length;
-  const linkedStations = dashboard.stations.filter((station) => linkedStationIds.has(station.id)).length;
-  const unlinkedStations = totalStations - linkedStations;
 
   const filteredStations = dashboard.stations.filter((station) => {
     const matchesSearch = !q || station.name.toLowerCase().includes(q);
-    const linked = linkedStationIds.has(station.id);
 
     const matchesFilter =
       filter === "all" ||
       (filter === "active" && station.active) ||
-      (filter === "inactive" && !station.active) ||
-      (filter === "linked" && linked) ||
-      (filter === "unlinked" && !linked);
+      (filter === "inactive" && !station.active);
 
     return matchesSearch && matchesFilter;
   });
@@ -71,12 +63,11 @@ export default async function StationsPage({
 
   return (
     <div className="module-grid">
-      <AdminCard icon={IconStore} eyebrow="Manage" title="Stations">
+      <AdminCard icon={IconStore} eyebrow="Manage" title="Exhibition stations">
         <div className="stations-heading">
           <div>
             <p className="stations-intro">
-              Create and manage event booths, control availability, and see which stations
-              already have a vendor account.
+              Create and manage exhibition stations. Each station is accessible directly from its station link; no password is required.
             </p>
           </div>
           <span className="badge badge-neutral">{totalStations} total</span>
@@ -89,7 +80,7 @@ export default async function StationsPage({
             </span>
             <div>
               <strong>{totalStations}</strong>
-              <span>Total stations</span>
+              <span>Total exhibition stations</span>
             </div>
           </article>
 
@@ -101,21 +92,6 @@ export default async function StationsPage({
             </div>
           </article>
 
-          <article className="station-stat">
-            <span className="station-stat__dot station-stat__dot--linked" aria-hidden="true" />
-            <div>
-              <strong>{linkedStations}</strong>
-              <span>Vendor linked</span>
-            </div>
-          </article>
-
-          <article className="station-stat">
-            <span className="station-stat__dot station-stat__dot--unlinked" aria-hidden="true" />
-            <div>
-              <strong>{unlinkedStations}</strong>
-              <span>Need vendor</span>
-            </div>
-          </article>
         </section>
 
         <details className="station-create" open={totalStations === 0}>
@@ -124,7 +100,7 @@ export default async function StationsPage({
               <IconPlus size={18} />
             </span>
             <span>
-              <strong>Add a new station</strong>
+              <strong>Add a new exhibition station</strong>
               <small>Create another booth or activity point</small>
             </span>
             <span className="station-create__summary-action">Add station</span>
@@ -135,7 +111,7 @@ export default async function StationsPage({
 
             <div className="field station-create__name">
               <label className="field-label" htmlFor="station-name">
-                Station name
+                Exhibition station name
               </label>
               <input
                 id="station-name"
@@ -146,7 +122,7 @@ export default async function StationsPage({
                 required
               />
               <p className="hint">
-                Use a name that participants and vendors can recognise immediately.
+                Use a name that participants and station staff can recognise immediately.
               </p>
             </div>
 
@@ -166,7 +142,7 @@ export default async function StationsPage({
               pendingLabel="Creating…"
             >
               <IconPlus size={17} />
-              Create station
+              Create exhibition station
             </PendingSubmitButton>
           </form>
         </details>
@@ -174,7 +150,7 @@ export default async function StationsPage({
         <section className="stations-list-section">
           <div className="stations-list-heading">
             <div>
-              <h2>Station directory</h2>
+              <h2>Exhibition station directory</h2>
               <p className="muted">
                 {filteredStations.length === totalStations
                   ? `${totalStations} stations`
@@ -190,9 +166,9 @@ export default async function StationsPage({
                 type="search"
                 name="q"
                 className="input"
-                placeholder="Search station name"
+                placeholder="Search exhibition station name"
                 defaultValue={q}
-                aria-label="Search stations"
+                aria-label="Search exhibition stations"
               />
             </div>
 
@@ -231,14 +207,14 @@ export default async function StationsPage({
               title={totalStations === 0 ? "No stations yet" : "No matching stations"}
               hint={
                 totalStations === 0
-                  ? "Use the Add a new station panel above to create your first booth."
+                  ? "Use the Add a new exhibition station panel above to create your first booth."
                   : "Try another search term or change the filter."
               }
             />
           ) : (
             <div className="station-cards">
               {filteredStations.map((station, index) => {
-                const linked = linkedStationIds.has(station.id);
+                const stationHref = `/station/${encodeURIComponent(station.name)}`;
 
                 return (
                   <article key={station.id} className="station-card">
@@ -254,7 +230,7 @@ export default async function StationsPage({
                           </span>
                           <div>
                             <strong>{station.name}</strong>
-                            <span>Station</span>
+                            <span>Exhibition station</span>
                           </div>
                         </div>
 
@@ -267,10 +243,16 @@ export default async function StationsPage({
                             <span className="station-status-dot" aria-hidden="true" />
                             {station.active ? "Active" : "Inactive"}
                           </span>
-                          <span className={`badge ${linked ? "badge-info" : "badge-neutral"}`}>
-                            {linked ? "Vendor linked" : "No vendor"}
-                          </span>
+                          <Link href={stationHref} className="badge badge-info" target="_blank">
+                            Open station link
+                          </Link>
                         </div>
+                      </div>
+
+                      <div className="row" style={{ marginTop: "0.75rem" }}>
+                        <Link href={stationHref} className="btn btn-ghost btn-sm" target="_blank">
+                          Open station page
+                        </Link>
                       </div>
 
                       <form action={editStationAction} className="station-card__form">
@@ -279,7 +261,7 @@ export default async function StationsPage({
 
                         <div className="field station-card__name-field">
                           <label className="field-label" htmlFor={`station-${station.id}`}>
-                            Station name
+                            Exhibition station name
                           </label>
                           <input
                             id={`station-${station.id}`}

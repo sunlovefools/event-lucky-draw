@@ -66,12 +66,12 @@ describe("vendor username/password login", () => {
   });
 });
 
-describe("vendor login screen", () => {
-  it("shows a protected login prompt to visitors", () => {
-    render(<VendorPortal dashboard={{ authorized: false }} />);
+describe("station portal fallback", () => {
+  it("explains when a station link is unknown", () => {
+    render(<VendorPortal dashboard={{ found: false }} />);
 
-    expect(screen.getByRole("heading", { name: "Vendor login" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Username")).toBeInTheDocument();
-    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Station not found" })).toBeInTheDocument();
+    expect(screen.getByText(/Check the station link/i)).toBeInTheDocument();
   });
 });
+

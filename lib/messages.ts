@@ -12,10 +12,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   "invalid-login": "Incorrect username or password.",
   "login-required": "Please log in to continue.",
   "station-invalid": "That station could not be saved. Check the name and try again.",
-  "vendor-invalid": "That vendor account could not be saved. Check the details and try again.",
+  "vendor-invalid": "That station login could not be saved. Check the details and try again.",
   "draw-invalid": "The draw couldn't be run. Try again in a moment.",
 
-  // Vendor
+  // Station login
   "participation-closed": "Participation is closed, so new QR codes can't be generated.",
 };
 

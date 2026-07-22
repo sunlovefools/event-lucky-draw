@@ -53,7 +53,7 @@ function ResultBanner({ result }: { result: ScanResult }) {
   );
 }
 
-export function VendorScanner({ participationOpen }: { participationOpen: boolean }) {
+export function VendorScanner({ participationOpen, stationName }: { participationOpen: boolean; stationName: string }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("camera");
@@ -128,10 +128,10 @@ export function VendorScanner({ participationOpen }: { participationOpen: boolea
 
       const stopCameraPromise = stopCamera();
       try {
-        const res = await fetch("/vendor/api/scan", {
+        const res = await fetch("/station/api/scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ badgePayload: trimmed }),
+          body: JSON.stringify({ badgePayload: trimmed, stationName }),
         });
         const data = (await res.json()) as ScanResult;
         await stopCameraPromise;
@@ -150,7 +150,7 @@ export function VendorScanner({ participationOpen }: { participationOpen: boolea
         setBusy(false);
       }
     },
-    [router, stopCamera, showOverlay, hideOverlay, startTransition],
+    [router, stationName, stopCamera, showOverlay, hideOverlay, startTransition],
   );
 
   const openManual = useCallback(() => {

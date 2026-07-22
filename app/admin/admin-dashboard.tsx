@@ -127,35 +127,32 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
         </form>
       </section>
 
-      {/* Vendors & stations — each vendor account is the login for exactly one station */}
+      {/* Exhibition stations */}
       <section className="card" id="vendors" aria-labelledby="vendors-title">
         <div className="section-head">
-          <h2 id="vendors-title">Vendors &amp; stations</h2>
-          <span className="badge badge-neutral">{dashboard.vendorAccounts.length} vendor(s) · {dashboard.stations.length} station(s)</span>
+          <h2 id="vendors-title">Exhibition stations</h2>
+          <span className="badge badge-neutral">{dashboard.stations.length} station(s)</span>
         </div>
         <p className="muted">
-          Each vendor account is the login for exactly one station, and a vendor account can be signed in on multiple devices at once. Each device is an independent session.
+          Each exhibition station has a direct station link for stamping delegates. No password is required.
         </p>
-        {dashboard.vendorAccounts.length === 0 ? (
-          <p className="empty">No vendor accounts yet.</p>
+        {dashboard.stations.length === 0 ? (
+          <p className="empty">No exhibition stations yet.</p>
         ) : (
           <ul className="list">
-            {dashboard.vendorAccounts.map((v) => {
-              const deviceCount = (dashboard.vendorSessions ?? []).filter((s) => s.vendorId === v.id).length;
-              return (
-                <li key={v.id} className="list-item">
-                  <div className="row-between">
-                    <span className="list-item-title">{v.username}</span>
-                    <span className={`badge ${v.active ? "badge-success" : "badge-neutral"}`}>{v.active ? "Active" : "Disabled"}</span>
-                  </div>
-                  <span className="muted">Station: {v.stationName} · {deviceCount} device(s)</span>
-                </li>
-              );
-            })}
+            {dashboard.stations.map((station) => (
+              <li key={station.id} className="list-item">
+                <div className="row-between">
+                  <span className="list-item-title">{station.name}</span>
+                  <span className={`badge ${station.active ? "badge-success" : "badge-neutral"}`}>{station.active ? "Active" : "Inactive"}</span>
+                </div>
+                <a className="muted" href={`/station/${encodeURIComponent(station.name)}`} target="_blank" rel="noreferrer">Open station link</a>
+              </li>
+            ))}
           </ul>
         )}
-        <a href="/admin/vendors" className="btn btn-primary btn-sm" style={{ marginTop: "1rem" }}>
-          Manage vendors &amp; stations
+        <a href="/admin/stations" className="btn btn-primary btn-sm" style={{ marginTop: "1rem" }}>
+          Manage exhibition stations
         </a>
       </section>
 

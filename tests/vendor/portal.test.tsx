@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { VendorPortal } from "@/app/vendor/vendor-portal";
 import { VendorScanner } from "@/app/vendor/vendor-scanner";
-import { getVendorDashboard, collectStampFromVendorScan } from "@/lib/vendor/portal";
+import { getVendorDashboard, getStationDashboard, collectStampFromVendorScan } from "@/lib/vendor/portal";
 import { createStore } from "./test-stores";
 
 const vendorSession = {
@@ -40,10 +40,11 @@ describe("vendor portal dashboard", () => {
   });
 
   it("returns full station scan history for polling", async () => {
-    const result = await getVendorDashboard({
+    const result = await getStationDashboard({
       store: createStore({
-        async findValidVendorSession() {
-          return vendorSession;
+        async findStationByName(stationName) {
+          expect(stationName).toBe("AI Booth");
+          return { id: "station-1", name: "AI Booth", active: true };
         },
         async listStationScanHistory(stationId) {
           expect(stationId).toBe("station-1");
@@ -65,11 +66,11 @@ describe("vendor portal dashboard", () => {
           ];
         },
       }),
-      sessionId: "vendor-session-1",
+      stationName: "AI Booth",
     });
 
     expect(result).toMatchObject({
-      authorized: true,
+      found: true,
       scanHistory: [
         { delegateFullName: "Ada Lovelace", collectedAt: "2025-01-01T00:01:00.000Z" },
         { delegateFullName: "Grace Hopper", collectedAt: "2025-01-01T00:03:00.000Z" },
@@ -183,8 +184,7 @@ describe("vendor portal UI", () => {
     render(
       <VendorPortal
         dashboard={{
-          authorized: true,
-          vendor: { id: "vendor-1", username: "ai-vendor" },
+          found: true,
           station: { id: "station-1", name: "AI Booth", active: true },
           participationOpen: true,
           scanHistory: [],
@@ -193,7 +193,7 @@ describe("vendor portal UI", () => {
     );
 
     expect(screen.getByRole("heading", { name: "AI Booth" })).toBeInTheDocument();
-    expect(screen.getAllByText(/Signed in as ai-vendor/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Use this station link to stamp delegates/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Scan the delegate's badge QR/i).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Allow camera access" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh list" })).toBeInTheDocument();
@@ -205,7 +205,7 @@ describe("vendor portal UI", () => {
       value: { getUserMedia: async () => ({}) },
     });
 
-    render(<VendorScanner participationOpen={true} />);
+    render(<VendorScanner participationOpen={true} stationName="AI Booth" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
 
@@ -217,8 +217,7 @@ describe("vendor portal UI", () => {
     render(
       <VendorPortal
         dashboard={{
-          authorized: true,
-          vendor: { id: "vendor-1", username: "ai-vendor" },
+          found: true,
           station: { id: "station-1", name: "AI Booth", active: true },
           participationOpen: false,
           scanHistory: [],
@@ -236,14 +235,14 @@ describe("vendor portal UI", () => {
     } as Response);
 
     try {
-      render(<VendorScanner participationOpen={true} />);
+      render(<VendorScanner participationOpen={true} stationName="AI Booth" />);
 
       fireEvent.click(screen.getByRole("button", { name: "Type code instead" }));
       fireEvent.change(screen.getByLabelText("Badge code"), { target: { value: "REG-001" } });
       fireEvent.click(screen.getByRole("button", { name: "Stamp delegate" }));
 
       await waitFor(() => expect(screen.getByText(/Stamped Ada Lovelace/i)).toBeInTheDocument());
-      expect(fetchMock).toHaveBeenCalledWith("/vendor/api/scan", expect.objectContaining({ method: "POST" }));
+      expect(fetchMock).toHaveBeenCalledWith("/station/api/scan", expect.objectContaining({ method: "POST" }));
     } finally {
       fetchMock.mockRestore();
     }

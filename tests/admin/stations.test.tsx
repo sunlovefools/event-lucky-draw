@@ -99,8 +99,8 @@ describe("station management", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Vendors & stations" })).toBeInTheDocument();
-    expect(screen.getByText("Station: AI Booth · 2 device(s)")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Manage vendors & stations" })).toHaveAttribute("href", "/admin/vendors");
+    expect(screen.getByRole("heading", { name: "Exhibition stations" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Open station link" })[0]).toHaveAttribute("href", "/station/AI%20Booth");
+    expect(screen.getByRole("link", { name: "Manage exhibition stations" })).toHaveAttribute("href", "/admin/stations");
   });
 });

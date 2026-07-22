@@ -19,7 +19,7 @@ export async function loginVendorAction(formData: FormData) {
   });
 
   if (!result.ok) {
-    redirect("/vendor?error=invalid-login");
+    redirect("/station?error=invalid-login");
   }
 
   const cookieStore = await cookies();
@@ -31,7 +31,7 @@ export async function loginVendorAction(formData: FormData) {
     path: "/",
   });
 
-  redirect("/vendor");
+  redirect("/station");
 }
 
 export async function logoutVendorAction() {
@@ -42,7 +42,7 @@ export async function logoutVendorAction() {
 
   const cookieStore = await cookies();
   cookieStore.delete({ name: VENDOR_SESSION_COOKIE, path: "/" });
-  cookieStore.delete({ name: VENDOR_SESSION_COOKIE, path: "/vendor" });
-  redirect("/vendor");
+  cookieStore.delete({ name: VENDOR_SESSION_COOKIE, path: "/station" });
+  redirect("/station");
 }
 

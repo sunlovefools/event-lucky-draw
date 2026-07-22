@@ -21,6 +21,9 @@ export function createStore(overrides: Partial<VendorTestStore> = {}): VendorTes
     async readParticipationOpen() {
       return true;
     },
+    async findStationByName(stationName) {
+      return { id: "station-1", name: stationName, active: true };
+    },
     async listStationScanHistory() {
       return [];
     },

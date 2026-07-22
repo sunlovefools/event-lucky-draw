@@ -113,7 +113,7 @@ describe("vendor account management", () => {
       active: true,
     });
 
-    expect(result).toEqual({ ok: false, error: "Vendor account must be assigned to exactly one station." });
+    expect(result).toEqual({ ok: false, error: "Station login must be assigned to exactly one exhibition station." });
     expect(created).toBe(false);
   });
 
@@ -171,7 +171,7 @@ describe("vendor account management", () => {
       active: true,
     });
 
-    expect(result).toEqual({ ok: false, error: "That station is already linked to another vendor account." });
+    expect(result).toEqual({ ok: false, error: "That exhibition station already has login credentials." });
   });
 
   it("lists active device sessions and can revoke one", async () => {

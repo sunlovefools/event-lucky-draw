@@ -1,35 +1,20 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
-import { VENDOR_SESSION_COOKIE } from "@/app/vendor/session";
-import { requireVendorSession, SupabaseVendorAuthStore } from "@/lib/auth/vendor-auth";
+import { collectStampForStationScan, SupabaseVendorStore } from "@/lib/vendor/portal";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
-import { collectStampFromVendorScan, SupabaseVendorStore } from "@/lib/vendor/portal";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(VENDOR_SESSION_COOKIE)?.value;
-  const supabase = createSupabaseBrowserClient();
-  const session = await requireVendorSession({
-    store: new SupabaseVendorAuthStore(supabase),
-    sessionId,
-    nowIso: new Date().toISOString(),
-  });
-
-  if (!session) {
-    return NextResponse.json(
-      { ok: false, reason: "unauthorized", error: "Vendor login required." },
-      { status: 401 },
-    );
-  }
-
   let badgePayload = "";
+  let stationName = "";
   try {
-    const body = (await request.json()) as { badgePayload?: unknown };
+    const body = (await request.json()) as { badgePayload?: unknown; stationName?: unknown };
     if (typeof body.badgePayload === "string") {
       badgePayload = body.badgePayload;
+    }
+    if (typeof body.stationName === "string") {
+      stationName = body.stationName;
     }
   } catch {
     return NextResponse.json(
@@ -38,9 +23,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await collectStampFromVendorScan({
-    store: new SupabaseVendorStore(supabase),
-    session,
+  const store = new SupabaseVendorStore(createSupabaseBrowserClient());
+  const station = stationName.trim() ? await store.findStationByName(stationName.trim()) : null;
+  if (!station) {
+    return NextResponse.json(
+      { ok: false, reason: "invalid", error: "Station not found." },
+      { status: 404 },
+    );
+  }
+
+  const result = await collectStampForStationScan({
+    store,
+    station,
     badgePayload,
   });
 

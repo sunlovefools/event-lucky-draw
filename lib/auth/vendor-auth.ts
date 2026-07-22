@@ -5,10 +5,10 @@ import { hashPassword } from "@/lib/password";
 import { normalizeUsername } from "@/lib/shared/normalize";
 import { type Station } from "@/lib/shared/station";
 
-// A vendor station is the same domain concept as an admin station.
+// A station login uses the same domain station that admins manage.
 export type VendorStation = Station;
 
-// The vendor's own view of its account: includes the secret material needed to
+// The station login's own view of its account: includes the secret material needed to
 // verify a login and the assigned station. This is a distinct projection from
 // the admin-facing VendorAccount in lib/shared/vendor-account.ts.
 export type VendorAccount = {
@@ -25,7 +25,7 @@ export type VendorSession = {
   expiresAt: string;
 };
 
-// One independent login on one physical device. A single vendor account may
+// One independent login on one physical device. A single station login may
 // have many of these at once — the station can be staffed by several phones.
 export type VendorDeviceSession = {
   id: string;
@@ -130,7 +130,7 @@ function stationFromJoin(
 ): VendorStation {
   const row = Array.isArray(station) ? station[0] : station;
   if (!row) {
-    throw new Error("Vendor account is missing an assigned station.");
+    throw new Error("Station login is missing an assigned exhibition station.");
   }
 
   return { id: row.id, name: row.name, active: row.active };

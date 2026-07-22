@@ -27,12 +27,12 @@ type VendorAccountUpdate = {
 function validateVendorFields(username: string, stationId: string) {
   const normalizedUsername = normalizeUsername(username);
   if (!normalizedUsername) {
-    return { ok: false as const, error: "Vendor username is required." };
+    return { ok: false as const, error: "Station login username is required." };
   }
 
   const normalizedStationId = normalizeStationId(stationId);
   if (!normalizedStationId) {
-    return { ok: false as const, error: "Vendor account must be assigned to exactly one station." };
+    return { ok: false as const, error: "Station login must be assigned to exactly one exhibition station." };
   }
 
   return { ok: true as const, username: normalizedUsername, stationId: normalizedStationId };
@@ -70,11 +70,11 @@ export async function createVendorAccount({
   const existingVendors = await store.listVendorAccounts();
   const stationTaken = existingVendors.find((v) => v.stationId === validFields.stationId);
   if (stationTaken) {
-    return { ok: false, error: "That station is already linked to another vendor account." };
+    return { ok: false, error: "That exhibition station already has login credentials." };
   }
 
   if (!password) {
-    return { ok: false, error: "Vendor password is required." };
+    return { ok: false, error: "Station login password is required." };
   }
 
   const passwordSalt = newSalt();
@@ -114,7 +114,7 @@ export async function editVendorAccount({
 
   const normalizedVendorId = vendorId.trim();
   if (!normalizedVendorId) {
-    return { ok: false, error: "Vendor account is required." };
+    return { ok: false, error: "Station login is required." };
   }
 
   const validFields = validateVendorFields(username, stationId);
@@ -125,7 +125,7 @@ export async function editVendorAccount({
   const others = (await store.listVendorAccounts()).filter((v) => v.id !== normalizedVendorId);
   const stationTaken = others.find((v) => v.stationId === validFields.stationId);
   if (stationTaken) {
-    return { ok: false, error: "That station is already linked to another vendor account." };
+    return { ok: false, error: "That exhibition station already has login credentials." };
   }
 
   return {
