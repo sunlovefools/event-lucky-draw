@@ -5,6 +5,7 @@ import { friendlyError } from "@/lib/messages";
 import type { DelegateHomeResult } from "@/lib/delegate";
 import { DelegateRegister } from "@/app/components/delegate-register";
 import { DelegateStamps } from "@/app/components/delegate-stamps";
+import { formatParticipantName } from "@/lib/shared/participant";
 
 export async function Home({
   delegateHomePromise = Promise.resolve({ identified: false }),
@@ -35,6 +36,7 @@ export async function Home({
 
 function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResult, { identified: true }> }) {
   const { delegate, progress, finalSurvey } = delegateHome;
+  const delegateDisplayName = formatParticipantName(delegate);
   const pct = progress.totalRequired === 0 ? 0 : Math.round((progress.completedCount / progress.totalRequired) * 100);
   const allStampsCollected = progress.totalRequired > 0 && progress.remainingCount === 0;
   // A delegate is only "entered" once every station stamp is collected AND the
@@ -48,7 +50,7 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
         <div className="section-head">
           <div>
             <p className="eyebrow">Welcome back</p>
-            <h2 id="welcome-title">{delegate.fullName}</h2>
+            <h2 id="welcome-title">Welcome {delegateDisplayName}!</h2>
           </div>
           <span className="badge badge-neutral">#{delegate.registrationNumber}</span>
         </div>
@@ -85,7 +87,7 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
           <p className="eyebrow">You're in</p>
           <h2 id="entered-title">You're entered into the lucky draw</h2>
           <p className="lead" style={{ margin: "0.5rem auto 0" }}>
-            Thanks for completing the quest, {delegate.fullName}. Keep an eye on the big screen for the draw!
+            Thanks for completing the quest, {delegateDisplayName}. Keep an eye on the big screen for the draw!
           </p>
           <p className="muted" style={{ marginTop: "0.75rem" }}>Registration #{delegate.registrationNumber}</p>
         </section>

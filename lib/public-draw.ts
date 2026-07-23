@@ -22,7 +22,7 @@ export class SupabasePublicDrawStore implements PublicDrawStore {
   async findLatestWinner(): Promise<AdminWinnerHistoryEntry | null> {
     const { data, error } = await this.supabase
       .from("winner_history")
-      .select("id, delegate_id, round_id, won_at, delegates(full_name, registration_number), draw_rounds(round_number)")
+      .select("id, delegate_id, round_id, won_at, delegates(title, full_name, registration_number), draw_rounds(round_number)")
       .order("won_at", { ascending: false })
       .limit(1)
       .maybeSingle<WinnerHistoryRow>();

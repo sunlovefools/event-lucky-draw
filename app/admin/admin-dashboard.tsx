@@ -196,7 +196,6 @@ export function AdminDashboard({ dashboard, error, health }: { dashboard: AdminD
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
           <a href="/admin/exports/participants" className="btn btn-ghost btn-block">Participants / progress</a>
           <a href="/admin/exports/station-completions" className="btn btn-ghost btn-block">Station completions</a>
-          <a href="/admin/exports/survey-responses" className="btn btn-ghost btn-block">Survey responses</a>
           <a href="/admin/exports/winner-history" className="btn btn-ghost btn-block">Winner history</a>
           <a href="/admin/exports/scan-audit" className="btn btn-ghost btn-block">Scan audit logs</a>
         </div>

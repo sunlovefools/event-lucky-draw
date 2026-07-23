@@ -5,11 +5,15 @@ import Link from "next/link";
 import { ADMIN_SESSION_COOKIE } from "@/app/admin/session";
 import { getAdminDashboard, SupabaseDashboardStore } from "@/lib/admin/dashboard";
 import {
+  createParticipantAction,
+  importParticipantsAction,
   updateDelegateNameAction,
   setDelegateDrawStatusAction,
 } from "@/app/admin/actions";
 import type { AdminParticipant, DelegateDrawStatus } from "@/lib/admin/participants";
 import { AdminCard, EmptyState, Pagination } from "@/app/admin/ui";
+import { friendlyError } from "@/lib/messages";
+import { formatParticipantName } from "@/lib/shared/participant";
 import {
   IconUsers,
   IconSearch,
@@ -19,6 +23,8 @@ import {
   IconPencil,
   IconList,
   IconChevronDown,
+  IconPlus,
+  IconUpload,
 } from "@/app/admin/icons";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
@@ -77,7 +83,17 @@ function getParticipantProgress(participant: AdminParticipant) {
 export default async function ParticipantsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; status?: string; sort?: string; page?: string }>;
+  searchParams?: Promise<{
+    q?: string;
+    status?: string;
+    sort?: string;
+    page?: string;
+    error?: string;
+    importCreated?: string;
+    importUpdated?: string;
+    importSkipped?: string;
+    participantSaved?: string;
+  }>;
 }) {
   const cookieStore = await cookies();
   const params = await searchParams;
@@ -149,6 +165,20 @@ export default async function ParticipantsPage({
   if (sort && sort !== "name") filterParams.sort = sort;
 
   const hasActiveFilters = Boolean(q || status !== "all" || sort !== "name");
+  const importCreated = Number(params?.importCreated ?? "");
+  const importUpdated = Number(params?.importUpdated ?? "");
+  const importSkipped = Number(params?.importSkipped ?? "");
+  const hasImportResult = params?.importCreated !== undefined || params?.importUpdated !== undefined || params?.importSkipped !== undefined;
+  const adminMessage = params?.error
+    ? { kind: "error" as const, text: friendlyError(params.error) ?? "Something went wrong." }
+    : hasImportResult
+      ? {
+          kind: "success" as const,
+          text: `${Number.isFinite(importCreated) ? importCreated : 0} accounts created, ${Number.isFinite(importUpdated) ? importUpdated : 0} updated, ${Number.isFinite(importSkipped) ? importSkipped : 0} rows skipped.`,
+        }
+      : params?.participantSaved
+        ? { kind: "success" as const, text: "Participant account saved." }
+        : null;
 
   return (
     <div className="module-grid participants-page">
@@ -158,6 +188,12 @@ export default async function ParticipantsPage({
         title="Participants"
         action={<span className="badge badge-neutral">{allParticipants.length}</span>}
       >
+        {adminMessage ? (
+          <p className={`alert ${adminMessage.kind === "success" ? "alert-success" : "alert-danger"}`} style={{ marginBottom: "1rem" }}>
+            {adminMessage.text}
+          </p>
+        ) : null}
+
         <div className="participant-summary" aria-label="Participant summary">
           <div className="summary-card">
             <span className="summary-label">Total participants</span>
@@ -179,6 +215,65 @@ export default async function ParticipantsPage({
             <strong>{surveyCount}</strong>
             <span className="summary-hint">Feedback submitted</span>
           </div>
+        </div>
+
+        <div className="participant-management">
+          <details className="participant-management__panel">
+            <summary>
+              <span className="participant-management__icon" aria-hidden="true">
+                <IconUpload size={18} />
+              </span>
+              <span>
+                <strong>Import Excel</strong>
+                <small>Use Delegate ID, Title, and Name from the first worksheet.</small>
+              </span>
+              <span className="participant-management__summary-action">Upload</span>
+            </summary>
+            <form action={importParticipantsAction} className="participant-management__form">
+              <input type="hidden" name="redirectTo" value={redirectTo} />
+              <div className="field">
+                <label className="field-label" htmlFor="participantFile">Excel file</label>
+                <input id="participantFile" name="participantFile" className="input" type="file" accept=".xls,.xlsx" required />
+                <p className="hint">Existing Delegate IDs are updated in place; accounts are never deleted. Maximum file size: 5 MB.</p>
+              </div>
+              <PendingSubmitButton className="btn btn-primary" pendingLabel="Importing...">
+                <IconUpload size={17} />
+                Import participants
+              </PendingSubmitButton>
+            </form>
+          </details>
+
+          <details className="participant-management__panel">
+            <summary>
+              <span className="participant-management__icon" aria-hidden="true">
+                <IconPlus size={18} />
+              </span>
+              <span>
+                <strong>Add participant</strong>
+                <small>Create or update one participant account manually.</small>
+              </span>
+              <span className="participant-management__summary-action">Add</span>
+            </summary>
+            <form action={createParticipantAction} className="participant-management__form participant-management__form--grid">
+              <input type="hidden" name="redirectTo" value={redirectTo} />
+              <div className="field">
+                <label className="field-label" htmlFor="participant-registration-number">Delegate ID</label>
+                <input id="participant-registration-number" name="registrationNumber" className="input" placeholder="e.g. REG-1024" required />
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="participant-title">Title</label>
+                <input id="participant-title" name="title" className="input" placeholder="e.g. Dr" />
+              </div>
+              <div className="field participant-management__name">
+                <label className="field-label" htmlFor="participant-full-name">Name</label>
+                <input id="participant-full-name" name="fullName" className="input" placeholder="Jane Doe" required />
+              </div>
+              <PendingSubmitButton className="btn btn-primary participant-management__save" pendingLabel="Saving...">
+                <IconPlus size={17} />
+                Save participant
+              </PendingSubmitButton>
+            </form>
+          </details>
         </div>
 
         <form method="get" action="/admin/participants" className="participant-toolbar">
@@ -300,6 +395,7 @@ function ParticipantRow({
 }) {
   const badge = DRAW_STATUS_BADGE[participant.drawStatus] ?? DRAW_STATUS_BADGE.not_eligible;
   const progress = getParticipantProgress(participant);
+  const displayName = formatParticipantName(participant);
 
   return (
     <tr>
@@ -309,7 +405,7 @@ function ParticipantRow({
             {getParticipantInitials(participant.fullName) || "?"}
           </span>
           <span className="participant-copy">
-            <span className="cell-strong">{participant.fullName}</span>
+            <span className="cell-strong">{displayName}</span>
             <span className="cell-sub">#{participant.registrationNumber}</span>
           </span>
         </div>
@@ -352,11 +448,12 @@ function ParticipantActions({
 }) {
   const canInclude = participant.drawStatus !== "manual_include" && participant.drawStatus !== "winner";
   const canDisqualify = participant.drawStatus !== "disqualified" && participant.drawStatus !== "winner";
+  const displayName = formatParticipantName(participant);
 
   return (
     <div className="participant-actions">
       <details className="action-menu">
-        <summary aria-label={`Show actions for ${participant.fullName}`}>
+        <summary aria-label={`Show actions for ${displayName}`}>
           Actions
           <IconChevronDown size={15} />
         </summary>
@@ -394,7 +491,7 @@ function ParticipantActions({
           )}
 
           <details className="rename-disclosure">
-            <summary aria-label={`Rename ${participant.fullName}`}>
+            <summary aria-label={`Rename ${displayName}`}>
               <IconPencil size={16} />
               Rename
             </summary>

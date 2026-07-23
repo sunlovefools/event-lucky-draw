@@ -115,6 +115,7 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
     async updateDelegateName(delegateId, fullName) {
       return {
         id: delegateId,
+        title: "",
         fullName,
         registrationNumber: "REG-001",
         stampsCollected: 0,
@@ -126,6 +127,7 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
     async updateDelegateDrawStatus(delegateId, drawStatus) {
       return {
         id: delegateId,
+        title: "",
         fullName: "Ada Lovelace",
         registrationNumber: "REG-001",
         stampsCollected: 0,
@@ -133,6 +135,21 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
         surveySubmitted: false,
         drawStatus,
       };
+    },
+    async createOrUpdateParticipant(participant) {
+      return {
+        id: "delegate-1",
+        title: participant.title,
+        fullName: participant.fullName,
+        registrationNumber: participant.registrationNumber,
+        stampsCollected: 0,
+        totalActiveStations: 0,
+        surveySubmitted: false,
+        drawStatus: "auto",
+      };
+    },
+    async upsertParticipants(participants) {
+      return { created: participants.length, updated: 0 };
     },
     ...overrides,
   };

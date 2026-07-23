@@ -31,7 +31,7 @@ export function AdminOverview({
   error?: string;
   health?: HealthStatus;
 }) {
-  const { participation, stations, vendorAccounts, participants, stationSummaries, scanAuditLogs, drawRounds } = dashboard;
+  const { participation, stations, participants, stationSummaries, scanAuditLogs, drawRounds } = dashboard;
 
   const eligibleCount = participants.filter((p) => ["eligible", "manual_include"].includes(p.drawStatus)).length;
   const activeStations = stations.filter((s) => s.active).length;

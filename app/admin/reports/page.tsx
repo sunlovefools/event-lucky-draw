@@ -9,7 +9,6 @@ import { IconReport, IconDownload, IconStore, IconList } from "@/app/admin/icons
 const EXPORTS = [
   { kind: "participants", label: "Participants / progress" },
   { kind: "station-completions", label: "Station completions" },
-  { kind: "survey-responses", label: "Survey responses" },
   { kind: "winner-history", label: "Winner history" },
   { kind: "scan-audit", label: "Scan audit logs" },
 ];

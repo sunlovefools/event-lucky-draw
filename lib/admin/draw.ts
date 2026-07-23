@@ -17,6 +17,7 @@ export type DrawRoundView = DrawRound & {
 
 export type LuckyDrawCandidate = {
   id: string;
+  title?: string;
   fullName: string;
   registrationNumber: string;
   drawStatus: DelegateDrawStatus;
@@ -178,6 +179,7 @@ type DrawRoundRow = {
 
 type CandidateRpcRow = {
   id: string;
+  title?: string | null;
   full_name: string;
   registration_number: string;
   draw_status: string;
@@ -198,6 +200,7 @@ function roundFromRow(row: DrawRoundRow): DrawRound {
 function candidateFromRpcRow(row: CandidateRpcRow): LuckyDrawCandidate {
   return {
     id: row.id,
+    title: row.title ?? "",
     fullName: row.full_name,
     registrationNumber: row.registration_number,
     drawStatus: row.draw_status,
@@ -265,7 +268,7 @@ export class SupabaseDrawStore implements DrawStore {
     const { data, error } = await this.supabase
       .from("winner_history")
       .insert({ delegate_id: delegateId, round_id: roundId, won_at: wonAt })
-      .select("id, delegate_id, round_id, won_at, delegates(full_name, registration_number), draw_rounds(round_number)")
+      .select("id, delegate_id, round_id, won_at, delegates(title, full_name, registration_number), draw_rounds(round_number)")
       .single<WinnerHistoryRow>();
 
     if (error) {
@@ -290,7 +293,7 @@ export class SupabaseDrawStore implements DrawStore {
 
     const { data: winners, error: winnersError } = await this.supabase
       .from("winner_history")
-      .select("id, delegate_id, round_id, won_at, delegates(full_name, registration_number), draw_rounds(round_number)")
+      .select("id, delegate_id, round_id, won_at, delegates(title, full_name, registration_number), draw_rounds(round_number)")
       .order("won_at", { ascending: true });
 
     if (winnersError) {

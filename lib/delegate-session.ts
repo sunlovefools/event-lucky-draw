@@ -4,6 +4,7 @@ export type SessionDelegate = {
   id: string;
   registrationNumber: string;
   fullName: string;
+  title?: string;
 };
 
 export type ValidDelegateSession = {
@@ -15,13 +16,13 @@ export type DelegateSessionStore = {
   findValidDelegateSession(sessionId: string, nowIso: string): Promise<ValidDelegateSession | null>;
 };
 
-export function delegateFromRow(row: { id: string; registration_number: string; full_name: string }): SessionDelegate {
-  return { id: row.id, registrationNumber: row.registration_number, fullName: row.full_name };
+export function delegateFromRow(row: { id: string; registration_number: string; full_name: string; title?: string | null }): SessionDelegate {
+  return { id: row.id, registrationNumber: row.registration_number, fullName: row.full_name, title: row.title ?? "" };
 }
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
-export type DelegateRow = { id: string; registration_number: string; full_name: string };
+export type DelegateRow = { id: string; registration_number: string; full_name: string; title?: string | null };
 
 export type DelegateSessionRow = {
   id: string;
@@ -35,7 +36,7 @@ export async function findValidDelegateSession(
 ): Promise<ValidDelegateSession | null> {
   const { data, error } = await supabase
     .from("delegate_sessions")
-    .select("id, delegates!inner(id, registration_number, full_name)")
+    .select("id, delegates!inner(id, registration_number, full_name, title)")
     .eq("id", sessionId)
     .gt("expires_at", nowIso)
     .maybeSingle<DelegateSessionRow>();

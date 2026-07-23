@@ -2,9 +2,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { type ValidAdminSession } from "@/lib/auth/admin-auth";
 import { SupabaseAdminAuthStore } from "@/lib/auth/admin-auth";
 
-export type AdminExportKind = "participants" | "station-completions" | "survey-responses" | "winner-history" | "scan-audit";
+export type AdminExportKind = "participants" | "station-completions" | "winner-history" | "scan-audit";
 
 export type ParticipantProgressExportRow = {
+  title: string;
   fullName: string;
   registrationNumber: string;
   stampsCollected: number;
@@ -19,17 +20,9 @@ export type StationCompletionExportRow = {
   completions: number;
 };
 
-export type SurveyResponseExportRow = {
-  fullName: string;
-  registrationNumber: string;
-  satisfaction: string;
-  favoriteStation: string;
-  feedback: string;
-  submittedAt: string;
-};
-
 export type WinnerHistoryExportRow = {
   roundNumber: number;
+  title: string;
   fullName: string;
   registrationNumber: string;
   wonAt: string;
@@ -48,7 +41,6 @@ export type AdminExportStore = {
   findValidSession(sessionId: string, nowIso: string): Promise<ValidAdminSession | null>;
   listParticipantProgressExportRows(): Promise<ParticipantProgressExportRow[]>;
   listStationCompletionExportRows(): Promise<StationCompletionExportRow[]>;
-  listSurveyResponseExportRows(): Promise<SurveyResponseExportRow[]>;
   listWinnerHistoryExportRows(): Promise<WinnerHistoryExportRow[]>;
   listScanAuditExportRows(): Promise<ScanAuditExportRow[]>;
 };
@@ -60,9 +52,9 @@ export type AdminCsvExportResult =
 const EXPORT_DEFINITIONS = {
   participants: {
     filename: "participants-progress.csv",
-    headers: ["full_name", "registration_number", "stamps_collected", "total_active_stations", "survey_submitted", "draw_status"],
+    headers: ["title", "full_name", "registration_number", "stamps_collected", "total_active_stations", "survey_submitted", "draw_status"],
     rows: (store: AdminExportStore) => store.listParticipantProgressExportRows(),
-    values: (row: ParticipantProgressExportRow) => [row.fullName, row.registrationNumber, row.stampsCollected, row.totalActiveStations, row.surveySubmitted, row.drawStatus],
+    values: (row: ParticipantProgressExportRow) => [row.title ?? "", row.fullName, row.registrationNumber, row.stampsCollected, row.totalActiveStations, row.surveySubmitted, row.drawStatus],
   },
   "station-completions": {
     filename: "station-completions.csv",
@@ -70,17 +62,11 @@ const EXPORT_DEFINITIONS = {
     rows: (store: AdminExportStore) => store.listStationCompletionExportRows(),
     values: (row: StationCompletionExportRow) => [row.stationName, row.active, row.completions],
   },
-  "survey-responses": {
-    filename: "survey-responses.csv",
-    headers: ["full_name", "registration_number", "satisfaction", "favorite_station", "feedback", "submitted_at"],
-    rows: (store: AdminExportStore) => store.listSurveyResponseExportRows(),
-    values: (row: SurveyResponseExportRow) => [row.fullName, row.registrationNumber, row.satisfaction, row.favoriteStation, row.feedback, row.submittedAt],
-  },
   "winner-history": {
     filename: "winner-history.csv",
-    headers: ["round_number", "full_name", "registration_number", "won_at"],
+    headers: ["round_number", "title", "full_name", "registration_number", "won_at"],
     rows: (store: AdminExportStore) => store.listWinnerHistoryExportRows(),
-    values: (row: WinnerHistoryExportRow) => [row.roundNumber, row.fullName, row.registrationNumber, row.wonAt],
+    values: (row: WinnerHistoryExportRow) => [row.roundNumber, row.title ?? "", row.fullName, row.registrationNumber, row.wonAt],
   },
   "scan-audit": {
     filename: "scan-audit.csv",
@@ -146,6 +132,7 @@ export async function exportAdminCsv({
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
 type ParticipantRpcRow = {
+  title?: string | null;
   full_name: string;
   registration_number: string;
   stamps_collected: number;
@@ -160,18 +147,10 @@ type StationCompletionRpcRow = {
   completions: number;
 };
 
-type SurveyResponseRow = {
-  satisfaction: string;
-  favorite_station: string;
-  feedback: string;
-  submitted_at: string;
-  delegates?: { full_name: string; registration_number: string } | Array<{ full_name: string; registration_number: string }> | null;
-};
-
 type WinnerHistoryRow = {
   draw_rounds?: { round_number: number } | Array<{ round_number: number }> | null;
   won_at: string;
-  delegates?: { full_name: string; registration_number: string } | Array<{ full_name: string; registration_number: string }> | null;
+  delegates?: { title?: string | null; full_name: string; registration_number: string } | Array<{ title?: string | null; full_name: string; registration_number: string }> | null;
 };
 
 type ScanAuditRpcRow = {
@@ -209,6 +188,7 @@ export class SupabaseAdminExportStore implements AdminExportStore {
     }
 
     return (data ?? []).map((row: ParticipantRpcRow) => ({
+      title: row.title ?? "",
       fullName: row.full_name,
       registrationNumber: row.registration_number,
       stampsCollected: row.stamps_collected,
@@ -231,33 +211,10 @@ export class SupabaseAdminExportStore implements AdminExportStore {
     }));
   }
 
-  async listSurveyResponseExportRows(): Promise<SurveyResponseExportRow[]> {
-    const { data, error } = await this.supabase
-      .from("final_survey_responses")
-      .select("satisfaction, favorite_station, feedback, submitted_at, delegates(full_name, registration_number)")
-      .order("submitted_at", { ascending: false });
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return (data ?? []).map((row: SurveyResponseRow) => {
-      const delegate = joinedOne(row.delegates);
-      return {
-        fullName: delegate?.full_name ?? "Unknown delegate",
-        registrationNumber: delegate?.registration_number ?? "",
-        satisfaction: row.satisfaction,
-        favoriteStation: row.favorite_station,
-        feedback: row.feedback,
-        submittedAt: row.submitted_at,
-      };
-    });
-  }
-
   async listWinnerHistoryExportRows(): Promise<WinnerHistoryExportRow[]> {
     const { data, error } = await this.supabase
       .from("winner_history")
-      .select("won_at, draw_rounds(round_number), delegates(full_name, registration_number)")
+      .select("won_at, draw_rounds(round_number), delegates(title, full_name, registration_number)")
       .order("won_at", { ascending: false });
 
     if (error) {
@@ -268,6 +225,7 @@ export class SupabaseAdminExportStore implements AdminExportStore {
       const delegate = joinedOne(row.delegates);
       return {
         roundNumber: joinedOne(row.draw_rounds)?.round_number ?? 0,
+        title: delegate?.title ?? "",
         fullName: delegate?.full_name ?? "Unknown delegate",
         registrationNumber: delegate?.registration_number ?? "",
         wonAt: row.won_at,

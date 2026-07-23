@@ -6,7 +6,6 @@ import { exportAdminCsv, SupabaseAdminExportStore, type AdminExportKind } from "
 const EXPORT_KINDS = new Set<AdminExportKind>([
   "participants",
   "station-completions",
-  "survey-responses",
   "winner-history",
   "scan-audit",
 ]);

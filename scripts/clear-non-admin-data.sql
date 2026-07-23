@@ -26,12 +26,8 @@ begin
       'delegate_station_stamps',
       'delegates',
       'draw_rounds',
-      'final_survey_responses',
       'scan_audit_logs',
-      'station_qr_tokens',
       'stations',
-      'vendor_accounts',
-      'vendor_sessions',
       'winner_history'
     ]);
 

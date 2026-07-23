@@ -2,10 +2,9 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { requireAdminSession, type AdminSessionStore, SupabaseAdminAuthStore } from "@/lib/auth/admin-auth";
 import { type VendorDeviceSession } from "@/lib/auth/vendor-auth";
 import { stationFromRow, type Station } from "@/lib/shared/station";
-import { vendorAccountFromRow, type VendorAccount } from "@/lib/shared/vendor-account";
+import { type VendorAccount } from "@/lib/shared/vendor-account";
 import { type AdminParticipant } from "@/lib/admin/participants";
 import { SupabaseStationsStore } from "@/lib/admin/stations";
-import { SupabaseVendorsStore } from "@/lib/admin/vendors";
 import { SupabaseParticipantsStore } from "@/lib/admin/participants";
 import { SupabaseDrawStore, type DrawRoundView } from "@/lib/admin/draw";
 
@@ -41,6 +40,8 @@ export type AdminDashboardResult =
       admin: { id: string; username: string };
       participation: ParticipationState;
       stations: Station[];
+      // Compatibility fields for an old, un-routed vendor screen. The current
+      // dashboard intentionally supplies no vendor data or database queries.
       vendorAccounts: VendorAccount[];
       vendorSessions?: VendorDeviceSession[];
       participants: AdminParticipant[];
@@ -55,8 +56,6 @@ export type DashboardStore = AdminSessionStore & {
   readParticipationState(): Promise<ParticipationState>;
   updateParticipationState(open: boolean, adminId: string, updatedAt: string): Promise<ParticipationState>;
   listStations(): Promise<Station[]>;
-  listVendorAccounts(): Promise<VendorAccount[]>;
-  listVendorSessions(nowIso: string): Promise<VendorDeviceSession[]>;
   listParticipants(): Promise<AdminParticipant[]>;
   listStationSummaries(): Promise<AdminStationSummary[]>;
   listScanAuditLogs(): Promise<AdminScanAuditLog[]>;
@@ -77,11 +76,9 @@ export async function getAdminDashboard({
     return { authorized: false };
   }
 
-  const [participation, stations, vendorAccounts, vendorSessions, participants, stationSummaries, scanAuditLogs, drawRounds] = await Promise.all([
+  const [participation, stations, participants, stationSummaries, scanAuditLogs, drawRounds] = await Promise.all([
     store.readParticipationState(),
     store.listStations(),
-    store.listVendorAccounts(),
-    store.listVendorSessions(now().toISOString()),
     store.listParticipants(),
     store.listStationSummaries(),
     store.listScanAuditLogs(),
@@ -93,8 +90,8 @@ export async function getAdminDashboard({
     admin: { id: session.adminId, username: session.username },
     participation,
     stations,
-    vendorAccounts,
-    vendorSessions,
+    vendorAccounts: [],
+    vendorSessions: [],
     participants,
     stationSummaries,
     scanAuditLogs,
@@ -178,7 +175,6 @@ function scanAuditLogFromRpcRow(row: ScanAuditLogRpcRow): AdminScanAuditLog {
 export class SupabaseDashboardStore implements DashboardStore {
   private readonly auth = new SupabaseAdminAuthStore();
   private readonly stations = new SupabaseStationsStore();
-  private readonly vendors = new SupabaseVendorsStore();
   private readonly participants = new SupabaseParticipantsStore();
   private readonly draw = new SupabaseDrawStore();
 
@@ -229,29 +225,6 @@ export class SupabaseDashboardStore implements DashboardStore {
 
   listStations() {
     return this.stations.listStations();
-  }
-
-  listVendorAccounts() {
-    return this.vendors.listVendorAccounts();
-  }
-
-  async listVendorSessions(nowIso: string): Promise<VendorDeviceSession[]> {
-    const { data, error } = await this.supabase
-      .from("vendor_sessions")
-      .select("id, vendor_id, created_at, expires_at")
-      .gt("expires_at", nowIso)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return (data ?? []).map((row) => ({
-      id: row.id,
-      vendorId: row.vendor_id,
-      createdAt: row.created_at,
-      expiresAt: row.expires_at,
-    }));
   }
 
   listParticipants() {

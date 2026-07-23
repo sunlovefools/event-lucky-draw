@@ -211,7 +211,7 @@ describe("vendor stamp scan", () => {
     expect(result).toEqual({
       ok: false,
       reason: "not-registered",
-      error: "Delegate not registered — ask them to register first.",
+      error: "Delegate account not found. Please ask the participant to contact admin.",
     });
   });
 

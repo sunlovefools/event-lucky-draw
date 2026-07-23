@@ -15,17 +15,11 @@ function createStore(overrides: Partial<DelegateStore> = {}): DelegateStore {
     async findDelegateByRegistrationNumber() {
       return null;
     },
-    async createDelegate(delegate) {
-      return { id: "delegate-1", registrationNumber: delegate.registrationNumber, fullName: delegate.fullName };
-    },
     async createDelegateSession(delegateId, expiresAt) {
       return { id: "delegate-session-1", delegateId, expiresAt };
     },
     async findValidDelegateSession() {
       return null;
-    },
-    async readParticipationOpen() {
-      return true;
     },
     async listActiveStations() {
       return [];
@@ -43,38 +37,40 @@ function createStore(overrides: Partial<DelegateStore> = {}): DelegateStore {
 }
 
 describe("delegate registration and resume", () => {
-  it("creates a delegate session from a scanned badge QR payload", async () => {
-    const createdDelegates: Array<{ registrationNumber: string; fullName: string }> = [];
+  it("creates a delegate session for a pre-created account from a scanned badge QR payload", async () => {
     const result = await identifyDelegate({
       store: createStore({
-        async createDelegate(delegate) {
-          createdDelegates.push(delegate);
-          return { id: "delegate-1", ...delegate };
+        async findDelegateByRegistrationNumber(registrationNumber) {
+          expect(registrationNumber).toBe("REG-001");
+          return { id: "delegate-1", registrationNumber, title: "Dr", fullName: "Ada Lovelace" };
         },
       }),
       badgePayload: "https://event.example/register?registrationNumber= REG-001 ",
-      fullName: " Ada Lovelace ",
+      fullName: "",
       now: () => new Date("2025-01-01T00:00:00.000Z"),
     });
 
     expect(result).toEqual({
       ok: true,
-      delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+      delegate: { id: "delegate-1", registrationNumber: "REG-001", title: "Dr", fullName: "Ada Lovelace" },
       session: {
         id: "delegate-session-1",
         delegateId: "delegate-1",
         expiresAt: "2025-01-31T00:00:00.000Z",
       },
-      resumed: false,
+      resumed: true,
     });
-    expect(createdDelegates).toEqual([{ registrationNumber: "REG-001", fullName: "Ada Lovelace" }]);
   });
 
-  it("creates a delegate session from manual registration number fallback", async () => {
+  it("creates a delegate session from manual registration number fallback when the account exists", async () => {
     const result = await registerOrResumeDelegate({
-      store: createStore(),
+      store: createStore({
+        async findDelegateByRegistrationNumber(registrationNumber) {
+          return { id: "delegate-1", registrationNumber, fullName: "Grace Hopper" };
+        },
+      }),
       registrationNumber: " manual-42 ",
-      fullName: " Grace Hopper ",
+      fullName: "",
       now: () => new Date("2025-01-01T00:00:00.000Z"),
     });
 
@@ -82,26 +78,26 @@ describe("delegate registration and resume", () => {
       ok: true,
       delegate: { id: "delegate-1", registrationNumber: "manual-42", fullName: "Grace Hopper" },
       session: { id: "delegate-session-1", delegateId: "delegate-1" },
-      resumed: false,
+      resumed: true,
     });
   });
 
-  it("requires full name on first registration", async () => {
-    let created = false;
+  it("rejects unknown delegate IDs without creating a session", async () => {
+    let sessionCreated = false;
 
     const result = await registerOrResumeDelegate({
       store: createStore({
-        async createDelegate() {
-          created = true;
-          throw new Error("should not create delegate");
+        async createDelegateSession() {
+          sessionCreated = true;
+          throw new Error("should not create session");
         },
       }),
       registrationNumber: "REG-001",
-      fullName: " ",
+      fullName: "",
     });
 
-    expect(result).toEqual({ ok: false, error: "Full name is required for first registration." });
-    expect(created).toBe(false);
+    expect(result).toEqual({ ok: false, error: "Delegate account was not found." });
+    expect(sessionCreated).toBe(false);
   });
 
   it("same browser resumes the delegate session", async () => {
@@ -125,17 +121,11 @@ describe("delegate registration and resume", () => {
   });
 
   it("same registration number resumes existing progress without requiring full name", async () => {
-    let created = false;
-
     const result = await registerOrResumeDelegate({
       store: createStore({
         async findDelegateByRegistrationNumber(registrationNumber) {
           expect(registrationNumber).toBe("REG-001");
           return { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" };
-        },
-        async createDelegate() {
-          created = true;
-          throw new Error("should not create a duplicate delegate");
         },
       }),
       registrationNumber: "REG-001",
@@ -148,28 +138,6 @@ describe("delegate registration and resume", () => {
       delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
       resumed: true,
     });
-    expect(created).toBe(false);
-  });
-
-  it("blocks new registration when participation is closed", async () => {
-    let created = false;
-
-    const result = await registerOrResumeDelegate({
-      store: createStore({
-        async readParticipationOpen() {
-          return false;
-        },
-        async createDelegate() {
-          created = true;
-          throw new Error("should not create delegate while closed");
-        },
-      }),
-      registrationNumber: "REG-001",
-      fullName: "Ada Lovelace",
-    });
-
-    expect(result).toEqual({ ok: false, error: "Registration is closed." });
-    expect(created).toBe(false);
   });
 });
 
@@ -304,10 +272,10 @@ describe("delegate home UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
 
     expect(document.getElementById("delegate-qr-reader")).toBeInTheDocument();
-    expect(screen.getByText("Requesting camera permission…")).toBeInTheDocument();
+    expect(screen.getByText("Requesting camera permission...")).toBeInTheDocument();
   });
 
-  it("keeps the scanned badge payload when a first-time delegate enters their name", async () => {
+  it("shows a contact-admin message when a badge code has no pre-created account", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       json: async () => ({ registered: false }),
     } as Response);
@@ -320,8 +288,8 @@ describe("delegate home UI", () => {
     fireEvent.change(screen.getByLabelText("Badge code"), { target: { value: "DLGT0224" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    await waitFor(() => expect(screen.getByLabelText("Full name")).toBeInTheDocument());
-    expect(document.querySelector<HTMLInputElement>('input[name="badgePayload"]')?.value).toBe("DLGT0224");
+    await waitFor(() => expect(screen.getByText("We couldn't find that badge. Please contact admin to create your account.")).toBeInTheDocument());
+    expect(screen.queryByLabelText("Full name")).not.toBeInTheDocument();
 
     fetchMock.mockRestore();
   });
@@ -345,7 +313,7 @@ describe("delegate home UI", () => {
       }),
     }));
 
-    expect(screen.getByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome Ada Lovelace!" })).toBeInTheDocument();
     expect(screen.getByText("#REG-001")).toBeInTheDocument();
     expect(screen.getByText("stations complete")).toBeInTheDocument();
     expect(screen.getByText("1/2")).toBeInTheDocument();
@@ -353,6 +321,25 @@ describe("delegate home UI", () => {
     expect(screen.getByText("AI Booth")).toBeInTheDocument();
     expect(screen.getByText("Cloud Booth")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Final survey" })).not.toBeInTheDocument();
+  });
+
+  it("welcomes delegates with their title when one exists", async () => {
+    render(await Home({
+      delegateHomePromise: Promise.resolve({
+        identified: true,
+        delegate: { id: "delegate-1", registrationNumber: "REG-001", title: "Dr", fullName: "Ada Lovelace" },
+        progress: {
+          stations: [],
+          completedCount: 0,
+          totalRequired: 0,
+          remainingCount: 0,
+          readyForFinalSurvey: false,
+        },
+        finalSurvey: { available: false, submitted: false, eligible: false, eligibleAt: null },
+      }),
+    }));
+
+    expect(screen.getByRole("heading", { name: "Welcome Dr Ada Lovelace!" })).toBeInTheDocument();
   });
 
   it("shows the Final Survey station unlocked after all regular stations are complete", async () => {
@@ -374,7 +361,7 @@ describe("delegate home UI", () => {
       }),
     }));
 
-    expect(screen.getByText("Final Survey station unlocked — scan it now to enter the lucky draw.")).toBeInTheDocument();
+    expect(screen.getByText(/Final Survey station unlocked/)).toBeInTheDocument();
     expect(screen.getByText("Final Survey")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Submit/ })).not.toBeInTheDocument();
   });
@@ -396,7 +383,7 @@ describe("delegate home UI", () => {
     }));
 
     expect(screen.getByRole("heading", { name: "You're entered into the lucky draw" })).toBeInTheDocument();
-    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByText(/Thanks for completing the quest, Ada Lovelace/)).toBeInTheDocument();
   });
 
   it("does not show 'You're in' for a delegate missing stamps, even if a survey exists", async () => {

@@ -49,7 +49,7 @@ describe("protected admin dashboard", () => {
     });
   });
 
-  it("includes stations and vendor account assignments on the protected dashboard", async () => {
+  it("includes stations on the protected dashboard", async () => {
     const result = await getAdminDashboard({
       store: createStore({
         async findValidSession() {
@@ -61,17 +61,6 @@ describe("protected admin dashboard", () => {
             { id: "station-2", name: "Cloud Booth", active: false },
           ];
         },
-        async listVendorAccounts() {
-          return [
-            {
-              id: "vendor-1",
-              username: "ai-vendor",
-              stationId: "station-1",
-              stationName: "AI Booth",
-              active: true,
-            },
-          ];
-        },
       }),
       sessionId: "session-1",
     });
@@ -81,15 +70,6 @@ describe("protected admin dashboard", () => {
       stations: [
         { id: "station-1", name: "AI Booth", active: true },
         { id: "station-2", name: "Cloud Booth", active: false },
-      ],
-      vendorAccounts: [
-        {
-          id: "vendor-1",
-          username: "ai-vendor",
-          stationId: "station-1",
-          stationName: "AI Booth",
-          active: true,
-        },
       ],
     });
   });
@@ -353,7 +333,6 @@ describe("admin dashboard UI", () => {
     expect(screen.getByRole("heading", { name: "Exports" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Participants / progress" })).toHaveAttribute("href", "/admin/exports/participants");
     expect(screen.getByRole("link", { name: "Station completions" })).toHaveAttribute("href", "/admin/exports/station-completions");
-    expect(screen.getByRole("link", { name: "Survey responses" })).toHaveAttribute("href", "/admin/exports/survey-responses");
     expect(screen.getByRole("link", { name: "Winner history" })).toHaveAttribute("href", "/admin/exports/winner-history");
     expect(screen.getByRole("link", { name: "Scan audit logs" })).toHaveAttribute("href", "/admin/exports/scan-audit");
   });

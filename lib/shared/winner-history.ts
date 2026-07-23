@@ -4,6 +4,7 @@
 export type AdminWinnerHistoryEntry = {
   id: string;
   delegateId: string;
+  title?: string;
   fullName: string;
   registrationNumber: string;
   roundId: string;
@@ -16,7 +17,7 @@ export type WinnerHistoryRow = {
   delegate_id: string;
   round_id: string;
   won_at: string;
-  delegates?: { full_name: string; registration_number: string } | Array<{ full_name: string; registration_number: string }> | null;
+  delegates?: { title?: string | null; full_name: string; registration_number: string } | Array<{ title?: string | null; full_name: string; registration_number: string }> | null;
   draw_rounds?: { round_number: number } | Array<{ round_number: number }> | null;
 };
 
@@ -26,6 +27,7 @@ export function winnerHistoryFromRow(row: WinnerHistoryRow): AdminWinnerHistoryE
   return {
     id: row.id,
     delegateId: row.delegate_id,
+    title: delegate?.title ?? "",
     fullName: delegate?.full_name ?? "Unknown delegate",
     registrationNumber: delegate?.registration_number ?? "",
     roundId: row.round_id,

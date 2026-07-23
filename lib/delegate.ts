@@ -2,8 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { delegateFromRow, findValidDelegateSession as queryValidDelegateSession, type DelegateRow, type SessionDelegate, type ValidDelegateSession } from "@/lib/delegate-session";
-import { readParticipationOpen as queryParticipationOpen } from "@/lib/participation";
-import { normalizeFullName, normalizeRegistrationNumber } from "@/lib/shared/normalize";
+import { normalizeRegistrationNumber } from "@/lib/shared/normalize";
 import { isFinalSurveyStationName, sortStationsWithFinalSurveyLast } from "@/lib/shared/station";
 
 export type Delegate = SessionDelegate;
@@ -48,10 +47,8 @@ export type DelegateFinalSurvey = FinalSurveyStatus & {
 
 export type DelegateStore = {
   findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null>;
-  createDelegate(delegate: { registrationNumber: string; fullName: string }): Promise<Delegate>;
   createDelegateSession(delegateId: string, expiresAt: string): Promise<DelegateSession>;
   findValidDelegateSession(sessionId: string, nowIso: string): Promise<ValidDelegateSession | null>;
-  readParticipationOpen(): Promise<boolean>;
   listActiveStations(): Promise<ActiveStation[]>;
   listDelegateStampStationIds(delegateId: string): Promise<string[]>;
   readFinalSurveyStatus(delegateId: string): Promise<FinalSurveyStatus>;
@@ -143,27 +140,7 @@ export async function registerOrResumeDelegate({
     };
   }
 
-  const normalizedFullName = normalizeFullName(fullName);
-  if (!normalizedFullName) {
-    return { ok: false, error: "Full name is required for first registration." };
-  }
-
-  const participationOpen = await store.readParticipationOpen();
-  if (!participationOpen) {
-    return { ok: false, error: "Registration is closed." };
-  }
-
-  const delegate = await store.createDelegate({
-    registrationNumber: normalizedRegistrationNumber,
-    fullName: normalizedFullName,
-  });
-
-  return {
-    ok: true,
-    delegate,
-    session: await createSessionForDelegate({ store, delegate, now }),
-    resumed: false,
-  };
+  return { ok: false, error: "Delegate account was not found." };
 }
 
 export async function getDelegateHome({
@@ -247,17 +224,13 @@ type DelegateWithEligibilityRow = DelegateRow & {
   draw_status?: string | null;
 };
 
-type FinalSurveyResponseRow = {
-  id: string;
-};
-
 export class SupabaseDelegateStore implements DelegateStore {
   constructor(private readonly supabase: SupabaseClientLike = createSupabaseBrowserClient()) {}
 
   async findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null> {
     const { data, error } = await this.supabase
       .from("delegates")
-      .select("id, registration_number, full_name")
+      .select("id, registration_number, full_name, title")
       .eq("registration_number", registrationNumber)
       .maybeSingle<DelegateRow>();
 
@@ -266,20 +239,6 @@ export class SupabaseDelegateStore implements DelegateStore {
     }
 
     return data ? delegateFromRow(data) : null;
-  }
-
-  async createDelegate(delegate: { registrationNumber: string; fullName: string }): Promise<Delegate> {
-    const { data, error } = await this.supabase
-      .from("delegates")
-      .insert({ registration_number: delegate.registrationNumber, full_name: delegate.fullName })
-      .select("id, registration_number, full_name")
-      .single<DelegateRow>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return delegateFromRow(data);
   }
 
   async createDelegateSession(delegateId: string, expiresAt: string): Promise<DelegateSession> {
@@ -299,10 +258,6 @@ export class SupabaseDelegateStore implements DelegateStore {
 
   async findValidDelegateSession(sessionId: string, nowIso: string): Promise<ValidDelegateSession | null> {
     return queryValidDelegateSession(this.supabase, sessionId, nowIso);
-  }
-
-  async readParticipationOpen(): Promise<boolean> {
-    return queryParticipationOpen(this.supabase);
   }
 
   async listActiveStations(): Promise<ActiveStation[]> {
@@ -333,25 +288,14 @@ export class SupabaseDelegateStore implements DelegateStore {
   }
 
   async readFinalSurveyStatus(delegateId: string): Promise<FinalSurveyStatus> {
-    const [delegateResult, surveyResult] = await Promise.all([
-      this.supabase
-        .from("delegates")
-        .select("id, registration_number, full_name, eligible_at, draw_status")
-        .eq("id", delegateId)
-        .single<DelegateWithEligibilityRow>(),
-      this.supabase
-        .from("final_survey_responses")
-        .select("id")
-        .eq("delegate_id", delegateId)
-        .maybeSingle<FinalSurveyResponseRow>(),
-    ]);
+    const delegateResult = await this.supabase
+      .from("delegates")
+      .select("id, registration_number, full_name, eligible_at, draw_status")
+      .eq("id", delegateId)
+      .single<DelegateWithEligibilityRow>();
 
     if (delegateResult.error) {
       throw new Error(delegateResult.error.message);
-    }
-
-    if (surveyResult.error) {
-      throw new Error(surveyResult.error.message);
     }
 
     const drawStatus = delegateResult.data.draw_status;
@@ -362,15 +306,16 @@ export class SupabaseDelegateStore implements DelegateStore {
     } else if (drawStatus === "excluded") {
       eligible = false;
     } else {
-      // Eligibility is written when the final survey is submitted after all
-      // active stations are complete. Do not re-count stations here: the home
-      // page already has the current station progress, and avoiding those two
-      // extra queries keeps delegate sign-in/reload fast under event traffic.
+      // Eligibility is written when the Final Survey station is stamped. Do
+      // not re-count stations here: the home page already has the current
+      // station progress, avoiding extra queries under event traffic.
       eligible = Boolean(eligibleAt);
     }
 
     return {
-      submitted: Boolean(surveyResult.data),
+      // The form-based survey was retired. Completion is now represented by a
+      // Final Survey station stamp and eligibility timestamp.
+      submitted: false,
       eligible,
       eligibleAt,
     };

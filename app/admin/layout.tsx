@@ -39,7 +39,6 @@ export default async function AdminLayout(props: { children: React.ReactNode }) 
   const counts = {
     participants: dashboard.participants.length,
     stations: dashboard.stations.length,
-    vendors: dashboard.vendorAccounts.length,
     scan: dashboard.scanAuditLogs.length,
     winners: dashboard.drawRounds.reduce((n, r) => n + r.winners.length, 0),
   };

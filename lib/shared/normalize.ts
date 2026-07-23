@@ -13,6 +13,10 @@ export function normalizeFullName(fullName: string) {
   return fullName.trim().replace(/\s+/g, " ");
 }
 
+export function normalizeTitle(title: string) {
+  return title.trim().replace(/\s+/g, " ");
+}
+
 export function normalizeStationId(stationId: string) {
   return stationId.trim();
 }

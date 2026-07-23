@@ -14,7 +14,7 @@ export async function identifyDelegateAction(formData: FormData) {
   });
 
   if (!result.ok) {
-    const error = result.error === "Registration is closed." ? "registration-closed" : "delegate-invalid";
+    const error = result.error === "Delegate account was not found." ? "delegate-not-found" : "delegate-invalid";
     redirect(`/?error=${error}`);
   }
 

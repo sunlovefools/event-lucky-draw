@@ -6,6 +6,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   // Delegate home
   "registration-closed": "Registration is closed. Please see an event organizer for help.",
   "delegate-invalid": "We couldn't find that badge. Check the QR or registration number and try again.",
+  "delegate-not-found": "We couldn't find that badge. Please contact admin to create your account.",
   "survey-invalid": "Your survey couldn't be submitted. Please try again.",
 
   // Admin
@@ -13,6 +14,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   "login-required": "Please log in to continue.",
   "station-invalid": "That station could not be saved. Check the name and try again.",
   "vendor-invalid": "That station login could not be saved. Check the details and try again.",
+  "participant-invalid": "That participant could not be saved. Check the ID and name, then try again.",
+  "participants-import-invalid": "Participants could not be imported. Check the spreadsheet and try again.",
   "draw-invalid": "The draw couldn't be run. Try again in a moment.",
 
   // Station login

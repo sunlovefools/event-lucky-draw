@@ -13,7 +13,13 @@ import {
 import { createStation, editStation, SupabaseStationsStore } from "@/lib/admin/stations";
 import { createVendorAccount, editVendorAccount, SupabaseVendorsStore } from "@/lib/admin/vendors";
 import { SupabaseVendorAuthStore } from "@/lib/auth/vendor-auth";
-import { updateDelegateName, setDelegateDrawStatus, SupabaseParticipantsStore } from "@/lib/admin/participants";
+import {
+  createParticipantAccount,
+  importParticipantAccounts,
+  updateDelegateName,
+  setDelegateDrawStatus,
+  SupabaseParticipantsStore,
+} from "@/lib/admin/participants";
 import { drawLuckyWinner, resetDrawRound, deleteDrawRound, SupabaseDrawStore } from "@/lib/admin/draw";
 import { setParticipationState, SupabaseDashboardStore } from "@/lib/admin/dashboard";
 
@@ -26,6 +32,14 @@ function resolveRedirect(formData: FormData, fallback = "/admin"): string {
     return raw;
   }
   return fallback;
+}
+
+function withQuery(target: string, params: Record<string, string | number>) {
+  const url = new URL(target, "http://local");
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, String(value));
+  }
+  return `${url.pathname}${url.search}`;
 }
 
 async function currentAdminSessionId() {
@@ -154,6 +168,49 @@ export async function updateDelegateNameAction(formData: FormData) {
   }
 
   redirect(target);
+}
+
+export async function createParticipantAction(formData: FormData) {
+  const target = resolveRedirect(formData, "/admin/participants");
+  const store = new SupabaseParticipantsStore();
+  const result = await withAdminSession(store, (sessionId) =>
+    createParticipantAccount({
+      store,
+      sessionId,
+      registrationNumber: String(formData.get("registrationNumber") ?? ""),
+      title: String(formData.get("title") ?? ""),
+      fullName: String(formData.get("fullName") ?? ""),
+    }),
+  );
+
+  if (!result.ok) {
+    redirect(withQuery(target, { error: result.error === "Admin login required." ? "login-required" : "participant-invalid" }));
+  }
+
+  redirect(withQuery(target, { participantSaved: "1" }));
+}
+
+export async function importParticipantsAction(formData: FormData) {
+  const target = resolveRedirect(formData, "/admin/participants");
+  const store = new SupabaseParticipantsStore();
+  const participantFile = formData.get("participantFile");
+  const result = await withAdminSession(store, (sessionId) =>
+    importParticipantAccounts({
+      store,
+      sessionId,
+      file: participantFile instanceof File ? participantFile : null,
+    }),
+  );
+
+  if (!result.ok) {
+    redirect(withQuery(target, { error: result.error === "Admin login required." ? "login-required" : "participants-import-invalid" }));
+  }
+
+  redirect(withQuery(target, {
+    importCreated: result.result.created,
+    importUpdated: result.result.updated,
+    importSkipped: result.result.skipped,
+  }));
 }
 
 export async function drawLuckyWinnerAction(formData: FormData) {

@@ -10,6 +10,7 @@ import {
 import { type Delegate, extractRegistrationNumberFromBadgePayload } from "@/lib/delegate";
 import { isFinalSurveyStationName, stationFromRow, type Station } from "@/lib/shared/station";
 import { delegateFromRow } from "@/lib/delegate-session";
+import { formatParticipantName } from "@/lib/shared/participant";
 
 export type StationDashboardResult =
   | { found: false }
@@ -153,8 +154,9 @@ export async function collectStampForStationScan({
 
   const delegate = await store.findDelegateByRegistrationNumber(registrationNumber);
   if (!delegate) {
-    return { ok: false, reason: "not-registered", error: "Delegate not registered — ask them to register first." };
+    return { ok: false, reason: "not-registered", error: "Delegate account not found. Please ask the participant to contact admin." };
   }
+  const delegateDisplayName = formatParticipantName(delegate);
 
   const stationId = station.id;
   const isFinalSurveyStation = isFinalSurveyStationName(station.name);
@@ -200,11 +202,11 @@ export async function collectStampForStationScan({
     }).catch(() => {});
     return {
       ok: true,
-      delegate: { fullName: delegate.fullName },
+      delegate: { fullName: delegateDisplayName },
       duplicate: true,
       message: isFinalSurveyStation
-        ? `${delegate.fullName} has already completed the Final Survey station.`
-        : `${delegate.fullName} was already collected at this station.`,
+        ? `${delegateDisplayName} has already completed the Final Survey station.`
+        : `${delegateDisplayName} was already collected at this station.`,
     };
   }
 
@@ -223,11 +225,11 @@ export async function collectStampForStationScan({
 
   return {
     ok: true,
-    delegate: { fullName: delegate.fullName },
+    delegate: { fullName: delegateDisplayName },
     duplicate: false,
     message: isFinalSurveyStation
-      ? `${delegate.fullName} completed the Final Survey station and is entered into the lucky draw.`
-      : `Successful Stamped ${delegate.fullName} QR! Ask him/her to refresh their page to look at the stamp!`,
+      ? `${delegateDisplayName} completed the Final Survey station and is entered into the lucky draw.`
+      : `Successful Stamped ${delegateDisplayName} QR! Ask him/her to refresh their page to look at the stamp!`,
   };
 }
 
@@ -247,7 +249,7 @@ export async function collectStampFromVendorScan({
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
-type DelegateRow = { id: string; registration_number: string; full_name: string };
+type DelegateRow = { id: string; registration_number: string; full_name: string; title?: string | null };
 
 type DelegateStampRow = { station_id: string };
 
@@ -262,7 +264,7 @@ type StationScanHistoryRow = {
   id: string;
   station_id: string;
   collected_at: string;
-  delegates?: { full_name: string } | { full_name: string }[] | null;
+  delegates?: { title?: string | null; full_name: string } | { title?: string | null; full_name: string }[] | null;
   stations?: { name: string } | { name: string }[] | null;
 };
 
@@ -275,7 +277,7 @@ function scanHistoryFromRow(row: StationScanHistoryRow): StationScanHistoryEntry
   const station = Array.isArray(row.stations) ? row.stations[0] : row.stations;
   return {
     id: row.id,
-    delegateFullName: delegate?.full_name ?? "Unknown delegate",
+    delegateFullName: delegate ? formatParticipantName({ title: delegate.title, fullName: delegate.full_name }) : "Unknown delegate",
     stationId: row.station_id,
     stationName: station?.name ?? "Unknown station",
     collectedAt: row.collected_at,
@@ -325,7 +327,7 @@ export class SupabaseVendorStore implements VendorPortalStore {
   async listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]> {
     const { data, error } = await this.supabase
       .from("delegate_station_stamps")
-      .select("id, station_id, collected_at, delegates(full_name), stations(name)")
+      .select("id, station_id, collected_at, delegates(title, full_name), stations(name)")
       .eq("station_id", stationId)
       .order("collected_at", { ascending: false });
 
@@ -339,7 +341,7 @@ export class SupabaseVendorStore implements VendorPortalStore {
   async findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null> {
     const { data, error } = await this.supabase
       .from("delegates")
-      .select("id, registration_number, full_name")
+      .select("id, registration_number, full_name, title")
       .eq("registration_number", registrationNumber)
       .maybeSingle<DelegateRow>();
 
