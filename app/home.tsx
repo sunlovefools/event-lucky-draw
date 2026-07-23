@@ -1,6 +1,5 @@
 import React from "react";
 
-import { submitFinalSurveyAction } from "@/app/final-survey/actions";
 import { logoutDelegateAction } from "@/app/delegate/actions";
 import { friendlyError } from "@/lib/messages";
 import type { DelegateHomeResult } from "@/lib/delegate";
@@ -37,11 +36,10 @@ export async function Home({
 function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResult, { identified: true }> }) {
   const { delegate, progress, finalSurvey } = delegateHome;
   const pct = progress.totalRequired === 0 ? 0 : Math.round((progress.completedCount / progress.totalRequired) * 100);
-  const allDone = progress.readyForFinalSurvey;
-  const allStampsCollected = progress.readyForFinalSurvey;
+  const allStampsCollected = progress.totalRequired > 0 && progress.remainingCount === 0;
   // A delegate is only "entered" once every station stamp is collected AND the
-  // final survey is submitted/eligible. Gating on allStampsCollected is what stops a
-  // profile that has a survey response but is missing stamps from showing "You're in".
+  // final survey station has marked them eligible. The legacy submitted flag is
+  // kept for already-migrated survey responses.
   const isEntered = allStampsCollected && (finalSurvey.submitted || finalSurvey.eligible);
 
   return (
@@ -71,16 +69,14 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
 
         <DelegateStamps delegateId={delegate.id} stations={progress.stations} />
 
-        {allDone ? (
+        {finalSurvey.available ? (
           <p className="alert alert-success" style={{ marginTop: "1.25rem" }}>
-            All required station stamps collected — you're ready for the final survey!
+            Final Survey station unlocked — scan it now to enter the lucky draw.
           </p>
         ) : null}
       </section>
 
-      {finalSurvey.available ? (
-        <FinalSurveyForm stations={progress.stations.map((s) => s.name)} />
-      ) : isEntered ? (
+      {isEntered ? (
         <section className="card center" aria-labelledby="entered-title">
           <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ margin: "0 auto 0.5rem" }}>
             <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4Z" />
@@ -98,7 +94,7 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
           <p className="eyebrow">Almost there</p>
           <h2 id="not-eligible-title">You're not in the draw yet</h2>
           <p className="lead" style={{ margin: "0.5rem auto 0" }}>
-            Your final survey was recorded, but you're not eligible to enter the draw. If this looks like a mistake, please see the event crew.
+            Your Final Survey station stamp was recorded, but you're not eligible to enter the draw. If this looks like a mistake, please see the event crew.
           </p>
         </section>
       ) : (
@@ -106,7 +102,7 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
           <p className="eyebrow">Not yet entered</p>
           <h2 id="need-stamps-title">Get all the stamps to enter the lucky draw!</h2>
           <p className="lead" style={{ margin: "0.5rem auto 0" }}>
-            Visit every station and collect a stamp from each one, then submit the final survey to enter.
+            Visit every regular station first. The Final Survey station stays locked until all other stamps are complete.
           </p>
         </section>
       )}
@@ -117,56 +113,5 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
         </button>
       </form>
     </>
-  );
-}
-
-function FinalSurveyForm({ stations }: { stations: string[] }) {
-  return (
-    <section className="card" aria-labelledby="survey-title">
-      <div className="section-head">
-        <h2 id="survey-title">Final survey</h2>
-        <span className="badge badge-accent">Last step</span>
-      </div>
-      <p className="lead">One quick survey and you're entered.</p>
-      <form action={submitFinalSurveyAction} className="form" style={{ marginTop: "1.25rem" }}>
-        <div className="field">
-          <label className="field-label" htmlFor="satisfaction">
-            How was the event?
-          </label>
-          <select id="satisfaction" name="satisfaction" className="select" required defaultValue="">
-            <option value="" disabled>
-              Choose an option
-            </option>
-            <option value="great">Great</option>
-            <option value="okay">Okay</option>
-            <option value="needs-improvement">Needs improvement</option>
-          </select>
-        </div>
-        <div className="field">
-          <label className="field-label" htmlFor="favoriteStation">
-            Favorite station
-          </label>
-          <select id="favoriteStation" name="favoriteStation" className="select" required defaultValue="">
-            <option value="" disabled>
-              Choose a station
-            </option>
-            {stations.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label className="field-label" htmlFor="feedback">
-            Feedback <span className="hint">(optional)</span>
-          </label>
-          <input id="feedback" name="feedback" className="input" placeholder="What stood out to you?" />
-        </div>
-        <button type="submit" className="btn btn-accent btn-block">
-          Submit &amp; enter the draw
-        </button>
-      </form>
-    </section>
   );
 }

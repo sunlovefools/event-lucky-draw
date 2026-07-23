@@ -8,7 +8,7 @@ import {
   type ValidVendorSession,
 } from "@/lib/auth/vendor-auth";
 import { type Delegate, extractRegistrationNumberFromBadgePayload } from "@/lib/delegate";
-import { stationFromRow, type Station } from "@/lib/shared/station";
+import { isFinalSurveyStationName, stationFromRow, type Station } from "@/lib/shared/station";
 import { delegateFromRow } from "@/lib/delegate-session";
 
 export type StationDashboardResult =
@@ -56,14 +56,17 @@ export type VendorScanAuditLogInput = {
 
 export type VendorScanResult =
   | { ok: true; delegate: { fullName: string }; duplicate: boolean; message: string }
-  | { ok: false; reason: "not-registered" | "invalid" | "closed"; error: string };
+  | { ok: false; reason: "not-registered" | "invalid" | "closed" | "locked"; error: string };
 
 export type VendorPortalStore = VendorSessionStore & {
   readParticipationOpen(): Promise<boolean>;
   findStationByName(stationName: string): Promise<Station | null>;
+  listActiveStations(): Promise<Station[]>;
   listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]>;
   findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null>;
+  listDelegateStampStationIds(delegateId: string): Promise<string[]>;
   createDelegateStampIfMissing(delegateId: string, stationId: string, collectedAt: string): Promise<{ created: boolean; stamp: VendorScanDelegateStamp | null }>;
+  markDelegateEligible(delegateId: string, eligibleAt: string): Promise<void>;
   recordScanAuditLog(log: VendorScanAuditLogInput): Promise<void>;
 };
 
@@ -154,8 +157,39 @@ export async function collectStampForStationScan({
   }
 
   const stationId = station.id;
+  const isFinalSurveyStation = isFinalSurveyStationName(station.name);
+  if (isFinalSurveyStation) {
+    const [activeStations, stampedStationIds] = await Promise.all([
+      store.listActiveStations(),
+      store.listDelegateStampStationIds(delegate.id),
+    ]);
+    const stampedStationSet = new Set(stampedStationIds);
+    const prerequisiteStationIds = activeStations
+      .filter((activeStation) => activeStation.id !== stationId && !isFinalSurveyStationName(activeStation.name))
+      .map((activeStation) => activeStation.id);
+    const missingPrerequisite = prerequisiteStationIds.some((activeStationId) => !stampedStationSet.has(activeStationId));
+    if (missingPrerequisite) {
+      await store.recordScanAuditLog({
+        delegateId: delegate.id,
+        stationId,
+        qrToken: badgePayload.trim(),
+        result: "locked",
+        consumed: false,
+        scannedAt,
+      }).catch(() => {});
+      return {
+        ok: false,
+        reason: "locked",
+        error: "Final Survey is locked. Complete all other stations first, then scan this station.",
+      };
+    }
+  }
+
   const stampResult = await store.createDelegateStampIfMissing(delegate.id, stationId, scannedAt);
   if (!stampResult.created) {
+    if (isFinalSurveyStation) {
+      await store.markDelegateEligible(delegate.id, scannedAt).catch(() => {});
+    }
     await store.recordScanAuditLog({
       delegateId: delegate.id,
       stationId,
@@ -168,8 +202,14 @@ export async function collectStampForStationScan({
       ok: true,
       delegate: { fullName: delegate.fullName },
       duplicate: true,
-      message: `${delegate.fullName} was already collected at this station.`,
+      message: isFinalSurveyStation
+        ? `${delegate.fullName} has already completed the Final Survey station.`
+        : `${delegate.fullName} was already collected at this station.`,
     };
+  }
+
+  if (isFinalSurveyStation) {
+    await store.markDelegateEligible(delegate.id, scannedAt);
   }
 
   await store.recordScanAuditLog({
@@ -185,7 +225,9 @@ export async function collectStampForStationScan({
     ok: true,
     delegate: { fullName: delegate.fullName },
     duplicate: false,
-    message: `Successful Stamped ${delegate.fullName} QR! Ask him/her to refresh their page to look at the stamp!`,
+    message: isFinalSurveyStation
+      ? `${delegate.fullName} completed the Final Survey station and is entered into the lucky draw.`
+      : `Successful Stamped ${delegate.fullName} QR! Ask him/her to refresh their page to look at the stamp!`,
   };
 }
 
@@ -206,6 +248,8 @@ export async function collectStampFromVendorScan({
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
 type DelegateRow = { id: string; registration_number: string; full_name: string };
+
+type DelegateStampRow = { station_id: string };
 
 type VendorScanDelegateStampRow = {
   id: string;
@@ -265,6 +309,19 @@ export class SupabaseVendorStore implements VendorPortalStore {
     return data ? stationFromRow(data) : null;
   }
 
+  async listActiveStations(): Promise<Station[]> {
+    const { data, error } = await this.supabase
+      .from("stations")
+      .select("id, name, active")
+      .eq("active", true);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map(stationFromRow);
+  }
+
   async listStationScanHistory(stationId: string): Promise<StationScanHistoryEntry[]> {
     const { data, error } = await this.supabase
       .from("delegate_station_stamps")
@@ -293,6 +350,19 @@ export class SupabaseVendorStore implements VendorPortalStore {
     return data ? delegateFromRow(data) : null;
   }
 
+  async listDelegateStampStationIds(delegateId: string): Promise<string[]> {
+    const { data, error } = await this.supabase
+      .from("delegate_station_stamps")
+      .select("station_id")
+      .eq("delegate_id", delegateId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map((stamp: DelegateStampRow) => stamp.station_id);
+  }
+
   async createDelegateStampIfMissing(delegateId: string, stationId: string, collectedAt: string): Promise<{ created: boolean; stamp: VendorScanDelegateStamp | null }> {
     const { data, error } = await this.supabase
       .from("delegate_station_stamps")
@@ -308,6 +378,17 @@ export class SupabaseVendorStore implements VendorPortalStore {
     }
 
     return data ? { created: true, stamp: stampFromRow(data) } : { created: false, stamp: null };
+  }
+
+  async markDelegateEligible(delegateId: string, eligibleAt: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("delegates")
+      .update({ eligible_at: eligibleAt })
+      .eq("id", delegateId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 
   async recordScanAuditLog(log: VendorScanAuditLogInput): Promise<void> {

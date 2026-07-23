@@ -110,7 +110,7 @@ describe("lucky draw", () => {
     expect(result).toEqual({ ok: false, error: "No eligible delegates remaining — reset to restore the draw pool." });
   });
 
-  it("derives the lucky draw pool from base eligibility (all stamps + survey, with admin override)", () => {
+  it("derives the lucky draw pool from base eligibility (all stamps, with admin override)", () => {
     const participants = [
       { id: "delegate-1", fullName: "Ada Lovelace", registrationNumber: "REG-001", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "eligible" as const },
       { id: "delegate-2", fullName: "Grace Hopper", registrationNumber: "REG-002", stampsCollected: 3, totalActiveStations: 3, surveySubmitted: true, drawStatus: "auto" as const },

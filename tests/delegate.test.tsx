@@ -119,8 +119,8 @@ describe("delegate registration and resume", () => {
     expect(result).toEqual({
       identified: true,
       delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
-      progress: { stations: [], completedCount: 0, totalRequired: 0, remainingCount: 0, readyForFinalSurvey: true },
-      finalSurvey: { available: true, submitted: false, eligible: false, eligibleAt: null },
+      progress: { stations: [], completedCount: 0, totalRequired: 0, remainingCount: 0, readyForFinalSurvey: false },
+      finalSurvey: { available: false, submitted: false, eligible: false, eligibleAt: null },
     });
   });
 
@@ -200,9 +200,9 @@ describe("delegate station progress", () => {
       delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
       progress: {
         stations: [
-          { id: "station-1", name: "AI Booth", completed: true },
-          { id: "station-2", name: "Cloud Booth", completed: false },
-          { id: "station-3", name: "Security Booth", completed: true },
+          { id: "station-1", name: "AI Booth", completed: true, isFinalSurvey: false, locked: false, lockReason: undefined },
+          { id: "station-2", name: "Cloud Booth", completed: false, isFinalSurvey: false, locked: false, lockReason: undefined },
+          { id: "station-3", name: "Security Booth", completed: true, isFinalSurvey: false, locked: false, lockReason: undefined },
         ],
         completedCount: 2,
         totalRequired: 3,
@@ -220,7 +220,7 @@ describe("delegate station progress", () => {
           return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
         },
         async listActiveStations() {
-          return [{ id: "station-1", name: "AI Booth" }, { id: "station-2", name: "Cloud Booth" }];
+          return [{ id: "station-1", name: "AI Booth" }, { id: "station-2", name: "Cloud Booth" }, { id: "final-survey", name: "Final Survey" }];
         },
         async listDelegateStampStationIds() {
           return ["station-1"];
@@ -234,7 +234,7 @@ describe("delegate station progress", () => {
           return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
         },
         async listActiveStations() {
-          return [{ id: "station-1", name: "AI Booth" }];
+          return [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey" }];
         },
         async listDelegateStampStationIds() {
           return ["station-1"];
@@ -254,7 +254,7 @@ describe("delegate station progress", () => {
           return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
         },
         async listActiveStations() {
-          return [{ id: "station-1", name: "AI Booth" }];
+          return [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey" }];
         },
         async listDelegateStampStationIds() {
           return ["station-1", "disabled-station"];
@@ -266,10 +266,13 @@ describe("delegate station progress", () => {
     expect(result).toMatchObject({
       identified: true,
       progress: {
-        stations: [{ id: "station-1", name: "AI Booth", completed: true }],
+        stations: [
+          { id: "station-1", name: "AI Booth", completed: true, isFinalSurvey: false, locked: false },
+          { id: "final-survey", name: "Final Survey", completed: false, isFinalSurvey: true, locked: false },
+        ],
         completedCount: 1,
-        totalRequired: 1,
-        remainingCount: 0,
+        totalRequired: 2,
+        remainingCount: 1,
         readyForFinalSurvey: true,
       },
       finalSurvey: { available: true, submitted: false, eligible: false, eligibleAt: null },
@@ -352,26 +355,28 @@ describe("delegate home UI", () => {
     expect(screen.queryByRole("heading", { name: "Final survey" })).not.toBeInTheDocument();
   });
 
-  it("shows the final survey after all active stations are complete", async () => {
+  it("shows the Final Survey station unlocked after all regular stations are complete", async () => {
     render(await Home({
       delegateHomePromise: Promise.resolve({
         identified: true,
         delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
         progress: {
-          stations: [{ id: "station-1", name: "AI Booth", completed: true }],
+          stations: [
+            { id: "station-1", name: "AI Booth", completed: true, isFinalSurvey: false, locked: false },
+            { id: "final-survey", name: "Final Survey", completed: false, isFinalSurvey: true, locked: false },
+          ],
           completedCount: 1,
-          totalRequired: 1,
-          remainingCount: 0,
+          totalRequired: 2,
+          remainingCount: 1,
           readyForFinalSurvey: true,
         },
         finalSurvey: { available: true, submitted: false, eligible: false, eligibleAt: null },
       }),
     }));
 
-    expect(screen.getByRole("heading", { name: "Final survey" })).toBeInTheDocument();
-    expect(screen.getByLabelText("How was the event?"));
-    expect(screen.getByLabelText("Favorite station"));
-    expect(screen.getByRole("button", { name: /Submit/ })).toBeInTheDocument();
+    expect(screen.getByText("Final Survey station unlocked — scan it now to enter the lucky draw.")).toBeInTheDocument();
+    expect(screen.getByText("Final Survey")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Submit/ })).not.toBeInTheDocument();
   });
 
   it("shows eligible confirmation instead of the survey after submission", async () => {
@@ -379,7 +384,13 @@ describe("delegate home UI", () => {
       delegateHomePromise: Promise.resolve({
         identified: true,
         delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
-        progress: { stations: [], completedCount: 0, totalRequired: 0, remainingCount: 0, readyForFinalSurvey: true },
+        progress: {
+          stations: [{ id: "final-survey", name: "Final Survey", completed: true, isFinalSurvey: true, locked: false }],
+          completedCount: 1,
+          totalRequired: 1,
+          remainingCount: 0,
+          readyForFinalSurvey: true,
+        },
         finalSurvey: { available: false, submitted: true, eligible: true, eligibleAt: "2025-01-01T00:00:00.000Z" },
       }),
     }));

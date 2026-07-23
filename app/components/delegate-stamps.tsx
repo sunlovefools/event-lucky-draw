@@ -18,6 +18,15 @@ function CheckIcon() {
   );
 }
 
+function LockIcon() {
+  return (
+    <svg className="stamp-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
 function RefreshIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -89,9 +98,11 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
           const isNewStamp = newStampIds.has(station.id);
 
           return (
-            <div key={station.id} className={`stamp ${station.completed ? "stamp-done" : ""} ${isNewStamp ? "stamp-new" : ""}`}>
+            <div key={station.id} className={`stamp ${station.completed ? "stamp-done" : ""} ${station.locked ? "stamp-locked" : ""} ${isNewStamp ? "stamp-new" : ""}`}>
               {station.completed ? (
                 <CheckIcon />
+              ) : station.locked ? (
+                <LockIcon />
               ) : (
                 <span
                   className="stamp-check"
@@ -100,6 +111,7 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
                 />
               )}
               <span className="stamp-name">{station.name}</span>
+              {station.locked && station.lockReason ? <span className="stamp-lock-reason">{station.lockReason}</span> : null}
               {isNewStamp ? <span className="stamp-burst" aria-hidden="true">STAMP!</span> : null}
             </div>
           );

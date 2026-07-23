@@ -125,6 +125,78 @@ describe("vendor stamp scan", () => {
     });
   });
 
+  it("locks the Final Survey station until every other station is complete", async () => {
+    let stamped = false;
+
+    const result = await collectStampFromVendorScan({
+      store: createStore({
+        async findDelegateByRegistrationNumber() {
+          return { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" };
+        },
+        async listActiveStations() {
+          return [
+            { id: "station-1", name: "AI Booth", active: true },
+            { id: "final-survey", name: "Final Survey", active: true },
+          ];
+        },
+        async listDelegateStampStationIds() {
+          return [];
+        },
+        async createDelegateStampIfMissing() {
+          stamped = true;
+          throw new Error("should not stamp a locked final station");
+        },
+      }),
+      session: { ...vendorSession, vendor: { ...vendorSession.vendor, station: { id: "final-survey", name: "Final Survey", active: true } } },
+      badgePayload: "REG-001",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "locked",
+      error: "Final Survey is locked. Complete all other stations first, then scan this station.",
+    });
+    expect(stamped).toBe(false);
+  });
+
+  it("marks the delegate eligible when the unlocked Final Survey station is scanned", async () => {
+    const markedEligible: Array<{ delegateId: string; eligibleAt: string }> = [];
+
+    const result = await collectStampFromVendorScan({
+      store: createStore({
+        async findDelegateByRegistrationNumber() {
+          return { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" };
+        },
+        async listActiveStations() {
+          return [
+            { id: "station-1", name: "AI Booth", active: true },
+            { id: "final-survey", name: "Final Survey", active: true },
+          ];
+        },
+        async listDelegateStampStationIds() {
+          return ["station-1"];
+        },
+        async createDelegateStampIfMissing(delegateId, stationId, collectedAt) {
+          return { created: true, stamp: { id: "stamp-final", delegateId, stationId, collectedAt } };
+        },
+        async markDelegateEligible(delegateId, eligibleAt) {
+          markedEligible.push({ delegateId, eligibleAt });
+        },
+      }),
+      session: { ...vendorSession, vendor: { ...vendorSession.vendor, station: { id: "final-survey", name: "Final Survey", active: true } } },
+      badgePayload: "REG-001",
+      now: () => new Date("2025-01-01T00:00:00.000Z"),
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      delegate: { fullName: "Ada Lovelace" },
+      duplicate: false,
+      message: "Ada Lovelace completed the Final Survey station and is entered into the lucky draw.",
+    });
+    expect(markedEligible).toEqual([{ delegateId: "delegate-1", eligibleAt: "2025-01-01T00:00:00.000Z" }]);
+  });
+
   it("rejects a badge for a delegate who hasn't registered yet", async () => {
     const result = await collectStampFromVendorScan({
       store: createStore({

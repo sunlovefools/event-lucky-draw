@@ -7,7 +7,7 @@ import { LoadingOverlay } from "@/app/components/loading-overlay";
 
 type ScanResult =
   | { ok: true; duplicate: boolean; message: string }
-  | { ok: false; reason: "not-registered" | "invalid" | "closed" | "unauthorized" | "error"; error: string };
+  | { ok: false; reason: "not-registered" | "invalid" | "closed" | "locked" | "unauthorized" | "error"; error: string };
 
 type Mode = "camera" | "manual";
 
@@ -44,6 +44,9 @@ function ResultBanner({ result }: { result: ScanResult }) {
   } else if (result.reason === "not-registered") {
     cls = "alert-info";
     label = "Not registered";
+  } else if (result.reason === "locked") {
+    cls = "alert-info";
+    label = "Station locked";
   }
 
   return (

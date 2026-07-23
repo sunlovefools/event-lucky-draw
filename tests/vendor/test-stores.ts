@@ -24,15 +24,22 @@ export function createStore(overrides: Partial<VendorTestStore> = {}): VendorTes
     async findStationByName(stationName) {
       return { id: "station-1", name: stationName, active: true };
     },
+    async listActiveStations() {
+      return [{ id: "station-1", name: "AI Booth", active: true }];
+    },
     async listStationScanHistory() {
       return [];
     },
     async findDelegateByRegistrationNumber() {
       return null;
     },
+    async listDelegateStampStationIds() {
+      return [];
+    },
     async createDelegateStampIfMissing(delegateId, stationId, collectedAt) {
       return { created: true, stamp: { id: "stamp-1", delegateId, stationId, collectedAt } };
     },
+    async markDelegateEligible() {},
     async recordScanAuditLog() {},
     ...overrides,
   };

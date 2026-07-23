@@ -520,6 +520,22 @@ h3 {
   background: var(--color-success-soft);
   color: var(--color-accent-strong);
 }
+.stamp-locked {
+  border-style: solid;
+  border-color: var(--color-border-strong);
+  background: color-mix(in srgb, var(--color-surface-2) 78%, #000 4%);
+}
+.stamp-locked .stamp-check {
+  background: transparent;
+  border: 2px solid var(--color-border-strong);
+  color: var(--color-muted);
+}
+.stamp-lock-reason {
+  max-width: 11rem;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
 .stamp-new {
   animation: stamp-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1), stamp-glow 900ms ease-out;
 }

@@ -4,6 +4,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { delegateFromRow, findValidDelegateSession as queryValidDelegateSession, type DelegateRow, type SessionDelegate, type ValidDelegateSession } from "@/lib/delegate-session";
 import { readParticipationOpen as queryParticipationOpen } from "@/lib/participation";
 import { normalizeFullName, normalizeRegistrationNumber } from "@/lib/shared/normalize";
+import { isFinalSurveyStationName, sortStationsWithFinalSurveyLast } from "@/lib/shared/station";
 
 export type Delegate = SessionDelegate;
 
@@ -17,6 +18,9 @@ export type ProgressStation = {
   id: string;
   name: string;
   completed: boolean;
+  isFinalSurvey: boolean;
+  locked: boolean;
+  lockReason?: string;
 };
 
 export type ActiveStation = {
@@ -186,14 +190,27 @@ export async function getDelegateHome({
     store.readFinalSurveyStatus(session.delegate.id),
   ]);
   const stampedStationIdSet = new Set(stampedStationIds);
-  const stations = activeStations.map((station) => ({
-    ...station,
-    completed: stampedStationIdSet.has(station.id),
-  }));
+  const displayStations = sortStationsWithFinalSurveyLast(activeStations);
+  const finalSurveyStation = displayStations.find((station) => isFinalSurveyStationName(station.name));
+  const prerequisiteStations = displayStations.filter((station) => !isFinalSurveyStationName(station.name));
+  const finalSurveyUnlocked = prerequisiteStations.every((station) => stampedStationIdSet.has(station.id));
+  const stations = displayStations.map((station) => {
+    const isFinalSurvey = isFinalSurveyStationName(station.name);
+    const completed = stampedStationIdSet.has(station.id);
+    const locked = isFinalSurvey && !completed && !finalSurveyUnlocked;
+    return {
+      ...station,
+      completed,
+      isFinalSurvey,
+      locked,
+      lockReason: locked ? "Complete all other stations first, then scan the Final Survey station." : undefined,
+    };
+  });
   const completedCount = stations.filter((station) => station.completed).length;
   const totalRequired = stations.length;
   const remainingCount = totalRequired - completedCount;
-  const readyForFinalSurvey = remainingCount === 0;
+  const finalSurveyCompleted = finalSurveyStation ? stampedStationIdSet.has(finalSurveyStation.id) : false;
+  const readyForFinalSurvey = Boolean(finalSurveyStation) && finalSurveyUnlocked;
 
   return {
     identified: true,
@@ -206,7 +223,7 @@ export async function getDelegateHome({
       readyForFinalSurvey,
     },
     finalSurvey: {
-      available: readyForFinalSurvey && !finalSurveyStatus.submitted,
+      available: readyForFinalSurvey && !finalSurveyCompleted && !finalSurveyStatus.submitted && !finalSurveyStatus.eligible,
       submitted: finalSurveyStatus.submitted,
       eligible: finalSurveyStatus.eligible,
       eligibleAt: finalSurveyStatus.eligibleAt,

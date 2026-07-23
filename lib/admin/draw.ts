@@ -40,10 +40,11 @@ export type DrawStore = AdminSessionStore & {
 
 const MAX_DRAW_ATTEMPTS = 10;
 
-// Base eligibility: all active station stamps collected AND the final survey
-// submitted. An admin may override with `eligible` (force include) or
-// `excluded` (force exclude). Previous winners are excluded separately by the
-// candidate query until reset clears winner history.
+// Base eligibility: all active station stamps collected. The Final Survey is
+// now the last active station stamp rather than a separate form. An admin may
+// override with `eligible` (force include) or `excluded` (force exclude).
+// Previous winners are excluded separately by the candidate query until reset
+// clears winner history.
 export function isBaseEligible(input: {
   drawStatus?: string | null;
   stampsCollected: number;
@@ -54,8 +55,7 @@ export function isBaseEligible(input: {
   if (status === "eligible") return true;
   if (status === "excluded") return false;
 
-  const hasAllStamps = input.totalActiveStations > 0 && input.stampsCollected >= input.totalActiveStations;
-  return hasAllStamps && input.surveySubmitted;
+  return input.totalActiveStations > 0 && input.stampsCollected >= input.totalActiveStations;
 }
 
 export function getLuckyDrawPool(participants: AdminParticipant[]): AdminParticipant[] {
