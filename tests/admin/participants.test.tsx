@@ -6,6 +6,7 @@ import {
   importParticipantAccounts,
   updateDelegateName,
   setDelegateDrawStatus,
+  setDelegateStationStamp,
 } from "@/lib/admin/participants";
 import { createStore } from "./test-stores";
 
@@ -82,6 +83,55 @@ describe("participant management", () => {
       { delegateId: "delegate-1", drawStatus: "manual_include" },
       { delegateId: "delegate-1", drawStatus: "disqualified" },
     ]);
+  });
+
+  it("lets an authenticated admin stamp or unstamp a participant station", async () => {
+    const changes: Array<{ delegateId: string; stationId: string; stamped: boolean; changedAt: string }> = [];
+    const store = createStore({
+      async findValidSession() {
+        return { id: "session-1", adminId: "admin-1", username: "organizer" };
+      },
+      async setDelegateStationStamp(delegateId, stationId, stamped, changedAt) {
+        changes.push({ delegateId, stationId, stamped, changedAt });
+      },
+    });
+    const now = () => new Date("2026-07-23T08:00:00.000Z");
+
+    const stamped = await setDelegateStationStamp({
+      store,
+      sessionId: "session-1",
+      delegateId: " delegate-1 ",
+      stationId: " station-1 ",
+      stamped: true,
+      now,
+    });
+    const unstamped = await setDelegateStationStamp({
+      store,
+      sessionId: "session-1",
+      delegateId: "delegate-1",
+      stationId: "station-1",
+      stamped: false,
+      now,
+    });
+
+    expect(stamped).toEqual({ ok: true });
+    expect(unstamped).toEqual({ ok: true });
+    expect(changes).toEqual([
+      { delegateId: "delegate-1", stationId: "station-1", stamped: true, changedAt: "2026-07-23T08:00:00.000Z" },
+      { delegateId: "delegate-1", stationId: "station-1", stamped: false, changedAt: "2026-07-23T08:00:00.000Z" },
+    ]);
+  });
+
+  it("does not let an unauthenticated admin change station stamps", async () => {
+    const result = await setDelegateStationStamp({
+      store: createStore(),
+      sessionId: "missing",
+      delegateId: "delegate-1",
+      stationId: "station-1",
+      stamped: true,
+    });
+
+    expect(result).toEqual({ ok: false, error: "Admin login required." });
   });
 
   it("lets an authenticated admin create or update one participant account", async () => {

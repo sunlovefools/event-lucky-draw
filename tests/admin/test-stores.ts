@@ -136,6 +136,9 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
         drawStatus,
       };
     },
+    async setDelegateStationStamp() {
+      return;
+    },
     async createOrUpdateParticipant(participant) {
       return {
         id: "delegate-1",

@@ -1,6 +1,7 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { normalizeFullName, normalizeRegistrationNumber, normalizeTitle } from "@/lib/shared/normalize";
 import { requireAdminSession, type AdminSessionStore, SupabaseAdminAuthStore } from "@/lib/auth/admin-auth";
+import { isFinalSurveyStationName } from "@/lib/shared/station";
 import * as XLSX from "xlsx";
 
 const MAX_PARTICIPANT_IMPORT_BYTES = 5 * 1024 * 1024;
@@ -13,6 +14,7 @@ export type AdminParticipant = {
   fullName: string;
   registrationNumber: string;
   stampsCollected: number;
+  stampedStationIds?: string[];
   totalActiveStations: number;
   surveySubmitted: boolean;
   drawStatus: DelegateDrawStatus;
@@ -36,6 +38,7 @@ export type ParticipantsStore = AdminSessionStore & {
   upsertParticipants(participants: ParticipantAccountInput[]): Promise<Omit<ParticipantImportResult, "skipped">>;
   updateDelegateName(delegateId: string, fullName: string): Promise<AdminParticipant>;
   updateDelegateDrawStatus(delegateId: string, drawStatus: DelegateDrawStatus): Promise<AdminParticipant>;
+  setDelegateStationStamp(delegateId: string, stationId: string, stamped: boolean, changedAt: string): Promise<void>;
 };
 
 function normalizeParticipantInput(input: {
@@ -228,6 +231,37 @@ export async function setDelegateDrawStatus({
   return { ok: true, participant: await store.updateDelegateDrawStatus(normalizedDelegateId, drawStatus) };
 }
 
+export async function setDelegateStationStamp({
+  store,
+  sessionId,
+  delegateId,
+  stationId,
+  stamped,
+  now = () => new Date(),
+}: {
+  store: ParticipantsStore;
+  sessionId?: string | null;
+  delegateId: string;
+  stationId: string;
+  stamped: boolean;
+  now?: () => Date;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const changedAt = now().toISOString();
+  const session = await requireAdminSession({ store, sessionId, nowIso: changedAt });
+  if (!session) {
+    return { ok: false, error: "Admin login required." };
+  }
+
+  const normalizedDelegateId = delegateId.trim();
+  const normalizedStationId = stationId.trim();
+  if (!normalizedDelegateId || !normalizedStationId) {
+    return { ok: false, error: "Delegate and station are required." };
+  }
+
+  await store.setDelegateStationStamp(normalizedDelegateId, normalizedStationId, stamped, changedAt);
+  return { ok: true };
+}
+
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
 type ParticipantRpcRow = {
@@ -247,6 +281,11 @@ type DelegateParticipantRow = {
   full_name: string;
   registration_number: string;
   draw_status: string;
+};
+
+type DelegateStampRow = {
+  delegate_id: string;
+  station_id: string;
 };
 
 function participantFromRpcRow(row: ParticipantRpcRow): AdminParticipant {
@@ -285,13 +324,29 @@ export class SupabaseParticipantsStore implements ParticipantsStore {
   }
 
   async listParticipants(): Promise<AdminParticipant[]> {
-    const { data, error } = await this.supabase.rpc("admin_participant_progress");
+    const [participantsResult, stampsResult] = await Promise.all([
+      this.supabase.rpc("admin_participant_progress"),
+      this.supabase.from("delegate_station_stamps").select("delegate_id, station_id"),
+    ]);
 
-    if (error) {
-      throw new Error(error.message);
+    if (participantsResult.error) {
+      throw new Error(participantsResult.error.message);
+    }
+    if (stampsResult.error) {
+      throw new Error(stampsResult.error.message);
     }
 
-    return (data ?? []).map(participantFromRpcRow);
+    const stationIdsByDelegate = new Map<string, string[]>();
+    for (const row of (stampsResult.data ?? []) as DelegateStampRow[]) {
+      const stationIds = stationIdsByDelegate.get(row.delegate_id) ?? [];
+      stationIds.push(row.station_id);
+      stationIdsByDelegate.set(row.delegate_id, stationIds);
+    }
+
+    return (participantsResult.data ?? []).map((row: ParticipantRpcRow) => ({
+      ...participantFromRpcRow(row),
+      stampedStationIds: stationIdsByDelegate.get(row.id) ?? [],
+    }));
   }
 
   async createOrUpdateParticipant(participant: ParticipantAccountInput): Promise<AdminParticipant> {
@@ -379,5 +434,45 @@ export class SupabaseParticipantsStore implements ParticipantsStore {
     }
 
     return participantFromDelegateRow(data);
+  }
+
+  async setDelegateStationStamp(delegateId: string, stationId: string, stamped: boolean, changedAt: string): Promise<void> {
+    if (stamped) {
+      const { error } = await this.supabase.from("delegate_station_stamps").upsert(
+        { delegate_id: delegateId, station_id: stationId, collected_at: changedAt },
+        { onConflict: "delegate_id,station_id", ignoreDuplicates: true },
+      );
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await this.supabase
+        .from("delegate_station_stamps")
+        .delete()
+        .eq("delegate_id", delegateId)
+        .eq("station_id", stationId);
+      if (error) throw new Error(error.message);
+    }
+
+    const [stationsResult, stampsResult] = await Promise.all([
+      this.supabase.from("stations").select("id, name").eq("active", true),
+      this.supabase.from("delegate_station_stamps").select("station_id").eq("delegate_id", delegateId),
+    ]);
+    if (stationsResult.error) throw new Error(stationsResult.error.message);
+    if (stampsResult.error) throw new Error(stampsResult.error.message);
+
+    const activeStations = (stationsResult.data ?? []) as Array<{ id: string; name: string }>;
+    const stampedStationIds = new Set(
+      ((stampsResult.data ?? []) as Array<{ station_id: string }>).map((row) => row.station_id),
+    );
+    const hasFinalSurvey = activeStations.some(
+      (station) => isFinalSurveyStationName(station.name) && stampedStationIds.has(station.id),
+    );
+    const hasAllActiveStamps =
+      activeStations.length > 0 && activeStations.every((station) => stampedStationIds.has(station.id));
+
+    const { error: eligibilityError } = await this.supabase
+      .from("delegates")
+      .update({ eligible_at: hasFinalSurvey && hasAllActiveStamps ? changedAt : null })
+      .eq("id", delegateId);
+    if (eligibilityError) throw new Error(eligibilityError.message);
   }
 }

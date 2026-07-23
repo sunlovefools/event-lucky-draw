@@ -942,6 +942,7 @@
         }
 
         .participants-page .action-menu > summary::-webkit-details-marker,
+        .participants-page .stamp-disclosure > summary::-webkit-details-marker,
         .participants-page .rename-disclosure > summary::-webkit-details-marker {
           display: none;
         }
@@ -972,6 +973,7 @@
         }
 
         .participants-page .action-menu-item,
+        .participants-page .stamp-disclosure > summary,
         .participants-page .rename-disclosure > summary {
           display: flex;
           width: 100%;
@@ -992,6 +994,8 @@
         }
 
         .participants-page .action-menu-item:hover,
+        .participants-page .stamp-disclosure > summary:hover,
+        .participants-page .stamp-disclosure[open] > summary,
         .participants-page .rename-disclosure > summary:hover,
         .participants-page .rename-disclosure[open] > summary {
           background: #f5f9ff;
@@ -1001,6 +1005,141 @@
         .participants-page .action-menu-item--danger:hover {
           background: #fff5f5;
           color: #c92a2a;
+        }
+
+        .participants-page .stamp-disclosure {
+          position: relative;
+        }
+
+        .participants-page .stamp-panel {
+          position: absolute;
+          z-index: 30;
+          top: calc(100% + 6px);
+          right: 0;
+          width: min(390px, calc(100vw - 48px));
+          padding: 14px;
+          border: 1px solid #d9e3f2;
+          border-radius: 14px;
+          background: #fff;
+          box-shadow: 0 18px 45px rgba(34, 57, 94, 0.16);
+        }
+
+        .participants-page .stamp-panel__heading {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 2px 2px 11px;
+          color: #172139;
+          font-size: 0.88rem;
+        }
+
+        .participants-page .stamp-panel__heading span {
+          color: #748198;
+          font-size: 0.74rem;
+          font-weight: 700;
+        }
+
+        .participants-page .stamp-list {
+          display: grid;
+          max-height: min(390px, 52vh);
+          gap: 6px;
+          overflow-y: auto;
+          padding-right: 2px;
+        }
+
+        .participants-page .stamp-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          min-height: 52px;
+          padding: 7px 8px;
+          border: 1px solid #e4eaf4;
+          border-radius: 11px;
+          background: #fbfdff;
+        }
+
+        .participants-page .stamp-row__station {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 9px;
+          color: #26344d;
+          font-size: 0.8rem;
+        }
+
+        .participants-page .stamp-row__station > span:last-child {
+          display: grid;
+          min-width: 0;
+          gap: 2px;
+        }
+
+        .participants-page .stamp-row__station strong {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .participants-page .stamp-row__station small {
+          color: #8995a7;
+          font-size: 0.68rem;
+          font-weight: 650;
+        }
+
+        .participants-page .stamp-row__state {
+          display: inline-flex;
+          width: 22px;
+          height: 22px;
+          flex: 0 0 22px;
+          align-items: center;
+          justify-content: center;
+          border: 1.5px solid #cbd6e7;
+          border-radius: 50%;
+          background: #fff;
+          color: #fff;
+        }
+
+        .participants-page .stamp-row__state.is-stamped {
+          border-color: #15957a;
+          background: #15957a;
+        }
+
+        .participants-page .stamp-row__button {
+          min-height: 32px;
+          flex: 0 0 auto;
+          padding: 0 10px;
+          border: 1px solid #b8cced;
+          border-radius: 999px;
+          background: #fff;
+          color: #245fd6;
+          font: inherit;
+          font-size: 0.72rem;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .participants-page .stamp-row__button:hover {
+          border-color: #7fa4e8;
+          background: #edf4ff;
+        }
+
+        .participants-page .stamp-row__button.is-remove {
+          border-color: #efc1c1;
+          color: #b72d2d;
+        }
+
+        .participants-page .stamp-row__button.is-remove:hover {
+          border-color: #e29898;
+          background: #fff4f4;
+        }
+
+        .participants-page .stamp-panel__empty {
+          margin: 0;
+          padding: 14px 8px;
+          color: #748198;
+          font-size: 0.8rem;
+          text-align: center;
         }
 
         .participants-page .rename-disclosure {

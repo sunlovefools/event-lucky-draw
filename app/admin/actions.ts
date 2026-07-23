@@ -18,6 +18,7 @@ import {
   importParticipantAccounts,
   updateDelegateName,
   setDelegateDrawStatus,
+  setDelegateStationStamp,
   SupabaseParticipantsStore,
 } from "@/lib/admin/participants";
 import { drawLuckyWinner, resetDrawRound, deleteDrawRound, SupabaseDrawStore } from "@/lib/admin/draw";
@@ -267,6 +268,26 @@ export async function setDelegateDrawStatusAction(formData: FormData) {
   }
 
   redirect(target);
+}
+
+export async function setDelegateStationStampAction(formData: FormData) {
+  const target = resolveRedirect(formData, "/admin/participants");
+  const store = new SupabaseParticipantsStore();
+  const result = await withAdminSession(store, (sessionId) =>
+    setDelegateStationStamp({
+      store,
+      sessionId,
+      delegateId: String(formData.get("delegateId") ?? ""),
+      stationId: String(formData.get("stationId") ?? ""),
+      stamped: formData.get("stamped") === "true",
+    }),
+  );
+
+  if (!result.ok) {
+    redirect(withQuery(target, { error: result.error === "Admin login required." ? "login-required" : "delegate-stamp-invalid" }));
+  }
+
+  redirect(withQuery(target, { stampUpdated: "1" }));
 }
 
 export async function createStationAction(formData: FormData) {

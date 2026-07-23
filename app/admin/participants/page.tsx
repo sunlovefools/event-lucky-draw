@@ -9,8 +9,10 @@ import {
   importParticipantsAction,
   updateDelegateNameAction,
   setDelegateDrawStatusAction,
+  setDelegateStationStampAction,
 } from "@/app/admin/actions";
 import type { AdminParticipant, DelegateDrawStatus } from "@/lib/admin/participants";
+import { sortStationsWithFinalSurveyLast, type Station } from "@/lib/shared/station";
 import { AdminCard, EmptyState, Pagination } from "@/app/admin/ui";
 import { friendlyError } from "@/lib/messages";
 import { formatParticipantName } from "@/lib/shared/participant";
@@ -25,6 +27,7 @@ import {
   IconChevronDown,
   IconPlus,
   IconUpload,
+  IconStamp,
 } from "@/app/admin/icons";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
@@ -93,6 +96,7 @@ export default async function ParticipantsPage({
     importUpdated?: string;
     importSkipped?: string;
     participantSaved?: string;
+    stampUpdated?: string;
   }>;
 }) {
   const cookieStore = await cookies();
@@ -109,6 +113,7 @@ export default async function ParticipantsPage({
   const page = Math.max(1, Number(params?.page ?? "1") || 1);
 
   const allParticipants = dashboard.participants;
+  const stations = sortStationsWithFinalSurveyLast(dashboard.stations);
   let rows = allParticipants;
 
   if (q) {
@@ -178,6 +183,8 @@ export default async function ParticipantsPage({
         }
       : params?.participantSaved
         ? { kind: "success" as const, text: "Participant account saved." }
+        : params?.stampUpdated
+          ? { kind: "success" as const, text: "Participant station stamp updated." }
         : null;
 
   return (
@@ -363,6 +370,7 @@ export default async function ParticipantsPage({
                     <ParticipantRow
                       key={participant.id}
                       participant={participant}
+                      stations={stations}
                       redirectTo={redirectTo}
                     />
                   ))}
@@ -388,9 +396,11 @@ export default async function ParticipantsPage({
 
 function ParticipantRow({
   participant,
+  stations,
   redirectTo,
 }: {
   participant: AdminParticipant;
+  stations: Station[];
   redirectTo: string;
 }) {
   const badge = DRAW_STATUS_BADGE[participant.drawStatus] ?? DRAW_STATUS_BADGE.not_eligible;
@@ -433,7 +443,7 @@ function ParticipantRow({
       </td>
 
       <td>
-        <ParticipantActions participant={participant} redirectTo={redirectTo} />
+        <ParticipantActions participant={participant} stations={stations} redirectTo={redirectTo} />
       </td>
     </tr>
   );
@@ -441,9 +451,11 @@ function ParticipantRow({
 
 function ParticipantActions({
   participant,
+  stations,
   redirectTo,
 }: {
   participant: AdminParticipant;
+  stations: Station[];
   redirectTo: string;
 }) {
   const canInclude = participant.drawStatus !== "manual_include" && participant.drawStatus !== "winner";
@@ -489,6 +501,52 @@ function ParticipantActions({
               </PendingSubmitButton>
             </form>
           )}
+
+          <details className="stamp-disclosure">
+            <summary aria-label={`Manage station stamps for ${displayName}`}>
+              <IconStamp size={16} />
+              Manage stamps
+            </summary>
+            <div className="stamp-panel">
+              <div className="stamp-panel__heading">
+                <strong>Station stamps</strong>
+                <span>{participant.stampedStationIds?.length ?? 0} collected</span>
+              </div>
+              {stations.length === 0 ? (
+                <p className="stamp-panel__empty">No stations have been created.</p>
+              ) : (
+                <div className="stamp-list">
+                  {stations.map((station) => {
+                    const stamped = participant.stampedStationIds?.includes(station.id) ?? false;
+                    return (
+                      <form action={setDelegateStationStampAction} className="stamp-row" key={station.id}>
+                        <input type="hidden" name="delegateId" value={participant.id} />
+                        <input type="hidden" name="stationId" value={station.id} />
+                        <input type="hidden" name="stamped" value={String(!stamped)} />
+                        <input type="hidden" name="redirectTo" value={redirectTo} />
+                        <span className="stamp-row__station">
+                          <span className={`stamp-row__state ${stamped ? "is-stamped" : ""}`} aria-hidden="true">
+                            {stamped ? <IconCheck size={14} /> : null}
+                          </span>
+                          <span>
+                            <strong>{station.name}</strong>
+                            {!station.active ? <small>Inactive station</small> : null}
+                          </span>
+                        </span>
+                        <PendingSubmitButton
+                          className={`stamp-row__button ${stamped ? "is-remove" : "is-add"}`}
+                          pendingLabel={stamped ? "Removing..." : "Stamping..."}
+                          title={`${stamped ? "Remove" : "Add"} ${station.name} stamp`}
+                        >
+                          {stamped ? "Unstamp" : "Stamp"}
+                        </PendingSubmitButton>
+                      </form>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </details>
 
           <details className="rename-disclosure">
             <summary aria-label={`Rename ${displayName}`}>
