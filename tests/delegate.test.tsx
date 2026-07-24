@@ -7,8 +7,30 @@ import {
   getDelegateHome,
   identifyDelegate,
   registerOrResumeDelegate,
+  type ActiveStation,
+  type Delegate,
+  type DelegateHomeSnapshot,
   type DelegateStore,
 } from "@/lib/delegate";
+
+const ada: Delegate = { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" };
+
+function createHomeSnapshot({
+  stations = [],
+  completedStationIds = [],
+  delegate = ada,
+}: {
+  stations?: ActiveStation[];
+  completedStationIds?: string[];
+  delegate?: Delegate;
+} = {}): DelegateHomeSnapshot {
+  const completed = new Set(completedStationIds);
+  return {
+    delegate,
+    stations: stations.map((station) => ({ ...station, completed: completed.has(station.id) })),
+    finalSurveyStatus: { submitted: false, eligible: false, eligibleAt: null },
+  };
+}
 
 function createStore(overrides: Partial<DelegateStore> = {}): DelegateStore {
   const store: DelegateStore = {
@@ -18,17 +40,8 @@ function createStore(overrides: Partial<DelegateStore> = {}): DelegateStore {
     async createDelegateSession(delegateId, expiresAt) {
       return { id: "delegate-session-1", delegateId, expiresAt };
     },
-    async findValidDelegateSession() {
+    async readDelegateHome() {
       return null;
-    },
-    async listActiveStations() {
-      return [];
-    },
-    async listDelegateStampStationIds() {
-      return [];
-    },
-    async readFinalSurveyStatus() {
-      return { submitted: false, eligible: false, eligibleAt: null };
     },
     ...overrides,
   };
@@ -103,9 +116,10 @@ describe("delegate registration and resume", () => {
   it("same browser resumes the delegate session", async () => {
     const result = await getDelegateHome({
       store: createStore({
-        async findValidDelegateSession(sessionId) {
+        async readDelegateHome(sessionId, nowIso) {
           expect(sessionId).toBe("delegate-session-1");
-          return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
+          expect(nowIso).toBe("2025-01-02T00:00:00.000Z");
+          return createHomeSnapshot();
         },
       }),
       sessionId: "delegate-session-1",
@@ -145,19 +159,15 @@ describe("delegate station progress", () => {
   it("shows active stations as completed or uncompleted with remaining count", async () => {
     const result = await getDelegateHome({
       store: createStore({
-        async findValidDelegateSession() {
-          return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
-        },
-        async listActiveStations() {
-          return [
+        async readDelegateHome() {
+          return createHomeSnapshot({
+            stations: [
             { id: "station-1", name: "AI Booth" },
             { id: "station-2", name: "Cloud Booth" },
             { id: "station-3", name: "Security Booth" },
-          ];
-        },
-        async listDelegateStampStationIds(delegateId) {
-          expect(delegateId).toBe("delegate-1");
-          return ["station-1", "station-3"];
+            ],
+            completedStationIds: ["station-1", "station-3"],
+          });
         },
       }),
       sessionId: "delegate-session-1",
@@ -184,28 +194,22 @@ describe("delegate station progress", () => {
   it("makes the final survey available only after all active stations are complete", async () => {
     const incomplete = await getDelegateHome({
       store: createStore({
-        async findValidDelegateSession() {
-          return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
-        },
-        async listActiveStations() {
-          return [{ id: "station-1", name: "AI Booth" }, { id: "station-2", name: "Cloud Booth" }, { id: "final-survey", name: "Final Survey" }];
-        },
-        async listDelegateStampStationIds() {
-          return ["station-1"];
+        async readDelegateHome() {
+          return createHomeSnapshot({
+            stations: [{ id: "station-1", name: "AI Booth" }, { id: "station-2", name: "Cloud Booth" }, { id: "final-survey", name: "Final Survey" }],
+            completedStationIds: ["station-1"],
+          });
         },
       }),
       sessionId: "delegate-session-1",
     });
     const complete = await getDelegateHome({
       store: createStore({
-        async findValidDelegateSession() {
-          return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
-        },
-        async listActiveStations() {
-          return [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey" }];
-        },
-        async listDelegateStampStationIds() {
-          return ["station-1"];
+        async readDelegateHome() {
+          return createHomeSnapshot({
+            stations: [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey" }],
+            completedStationIds: ["station-1"],
+          });
         },
       }),
       sessionId: "delegate-session-1",
@@ -218,14 +222,11 @@ describe("delegate station progress", () => {
   it("does not count disabled stations as required progress", async () => {
     const result = await getDelegateHome({
       store: createStore({
-        async findValidDelegateSession() {
-          return { id: "delegate-session-1", delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" } };
-        },
-        async listActiveStations() {
-          return [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey" }];
-        },
-        async listDelegateStampStationIds() {
-          return ["station-1", "disabled-station"];
+        async readDelegateHome() {
+          return createHomeSnapshot({
+            stations: [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey" }],
+            completedStationIds: ["station-1", "disabled-station"],
+          });
         },
       }),
       sessionId: "delegate-session-1",

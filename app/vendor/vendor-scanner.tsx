@@ -1,13 +1,22 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { LoadingOverlay } from "@/app/components/loading-overlay";
+import type { StationScanHistoryEntry } from "@/lib/vendor/portal";
 
 type ScanResult =
-  | { ok: true; duplicate: boolean; message: string }
-  | { ok: false; reason: "not-registered" | "invalid" | "closed" | "locked" | "unauthorized" | "error"; error: string };
+  | {
+      ok: true;
+      duplicate: boolean;
+      message: string;
+      historyEntry?: StationScanHistoryEntry;
+    }
+  | {
+      ok: false;
+      reason: "not-registered" | "invalid" | "closed" | "locked" | "unauthorized" | "error";
+      error: string;
+    };
 
 type Mode = "camera" | "manual";
 
@@ -15,6 +24,8 @@ const READER_ID = "vendor-qr-reader";
 
 type ScannerLike = {
   start: (cameraIdOrConfig: unknown, config: unknown, successCallback: (decoded: string) => void, errorCallback?: (error: unknown) => void) => Promise<void>;
+  pause: (shouldPauseVideo?: boolean) => void;
+  resume: () => void;
   stop: () => Promise<void>;
   clear: () => void;
 };
@@ -30,45 +41,113 @@ function describeCameraError(err: unknown): string {
   return "Camera unavailable. Use “Type code instead” to enter the code.";
 }
 
-function ResultBanner({ result }: { result: ScanResult }) {
-  let cls = "alert-danger";
-  let label = "Couldn't stamp";
-  if (result.ok) {
-    if (result.duplicate) {
-      cls = "alert-info";
-      label = "Already collected";
+function resultHeading(result: ScanResult) {
+  if (result.ok) return result.duplicate ? "Already collected" : "Stamped!";
+  if (result.reason === "not-registered") return "Not registered";
+  if (result.reason === "locked") return "Station locked";
+  return "Couldn't stamp";
+}
+
+function ScanResultDialog({ result, onContinue }: { result: ScanResult; onContinue: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const heading = resultHeading(result);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (typeof dialog.showModal === "function") {
+      if (!dialog.open) dialog.showModal();
     } else {
-      cls = "alert-success";
-      label = "Stamped!";
+      dialog.setAttribute("open", "");
     }
-  } else if (result.reason === "not-registered") {
-    cls = "alert-info";
-    label = "Not registered";
-  } else if (result.reason === "locked") {
-    cls = "alert-info";
-    label = "Station locked";
-  }
+
+    return () => {
+      if (typeof dialog.close === "function" && dialog.open) dialog.close();
+      else dialog.removeAttribute("open");
+    };
+  }, []);
 
   return (
-    <div className={`alert ${cls}`} role="alert" aria-live="polite">
-      <strong>{label}.</strong> {result.ok ? result.message : result.error}
-    </div>
+    <dialog
+      ref={dialogRef}
+      className={`scan-result-dialog ${result.ok ? "scan-result-dialog--success" : "scan-result-dialog--error"}`}
+      aria-labelledby="scan-result-title"
+      aria-describedby="scan-result-message"
+      onCancel={(event) => {
+        event.preventDefault();
+        onContinue();
+      }}
+    >
+      <div className="scan-result-card">
+        <span className="scan-result-icon" aria-hidden="true">
+          {result.ok ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m5 12 4 4L19 6" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          )}
+        </span>
+        <h2 id="scan-result-title">{heading}</h2>
+        <p id="scan-result-message">{result.ok ? result.message : result.error}</p>
+        <button type="button" className="btn btn-primary btn-block" autoFocus onClick={onContinue}>
+          Continue
+        </button>
+      </div>
+    </dialog>
   );
 }
 
-export function VendorScanner({ participationOpen, stationName }: { participationOpen: boolean; stationName: string }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
+function playScanFeedback(success: boolean) {
+  try {
+    navigator.vibrate?.(success ? [70] : [45, 50, 45]);
+  } catch {
+    // Feedback is optional and unsupported on some browsers.
+  }
+
+  try {
+    const AudioContextConstructor = window.AudioContext
+      ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) return;
+    const audioContext = new AudioContextConstructor();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.frequency.value = success ? 880 : 220;
+    gain.gain.setValueAtTime(0.05, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.12);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.12);
+    oscillator.addEventListener("ended", () => void audioContext.close(), { once: true });
+  } catch {
+    // Audio feedback is best-effort only.
+  }
+}
+
+export function VendorScanner({
+  participationOpen,
+  stationName,
+  onHistoryEntry,
+}: {
+  participationOpen: boolean;
+  stationName: string;
+  onHistoryEntry?: (entry: StationScanHistoryEntry) => void;
+}) {
   const [mode, setMode] = useState<Mode>("camera");
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarted, setCameraStarted] = useState(false);
+  const [cameraCycle, setCameraCycle] = useState(0);
   const [scanError, setScanError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayMessage, setOverlayMessage] = useState<string | undefined>();
   const overlayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  const manualFormRef = useRef<HTMLFormElement>(null);
   const scannerRef = useRef<ScannerLike | null>(null);
   const scanInFlightRef = useRef(false);
 
@@ -78,11 +157,13 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
     setOverlayVisible(true);
     overlayTimer.current = setTimeout(() => setOverlayVisible(false), 6000);
   }, []);
+
   const hideOverlay = useCallback(() => {
     if (overlayTimer.current) clearTimeout(overlayTimer.current);
     overlayTimer.current = null;
     setOverlayVisible(false);
   }, []);
+
   useEffect(() => () => {
     if (overlayTimer.current) clearTimeout(overlayTimer.current);
   }, []);
@@ -95,20 +176,14 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
       await scanner.stop();
       scanner.clear();
     } catch {
-      /* already stopped or never started */
+      // The camera may already be stopped or may not have finished starting.
     }
   }, []);
 
-  const reset = useCallback(() => {
-    void stopCamera();
-    setCameraActive(false);
+  const restartCamera = useCallback(() => {
     setCameraStarted(false);
-    setScanError(null);
-    setResult(null);
-    scanInFlightRef.current = false;
-    hideOverlay();
-    setMode("camera");
-  }, [stopCamera, hideOverlay]);
+    setCameraCycle((cycle) => cycle + 1);
+  }, []);
 
   const handlePayload = useCallback(
     async (payload: string) => {
@@ -119,8 +194,7 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
       setScanError(null);
       showOverlay("Stamping delegate…");
 
-      // Paint the transparent loader before releasing the camera or calling the
-      // scan API, so lower-end phones do not look frozen after a QR is captured.
+      // Give the loader one paint before pausing video and starting the request.
       await new Promise<void>((resolve) => {
         if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
           setTimeout(resolve, 0);
@@ -129,7 +203,12 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
         window.requestAnimationFrame(() => resolve());
       });
 
-      const stopCameraPromise = stopCamera();
+      try {
+        scannerRef.current?.pause(true);
+      } catch {
+        // Manual entry and a camera that has just stopped do not need pausing.
+      }
+
       try {
         const res = await fetch("/station/api/scan", {
           method: "POST",
@@ -137,24 +216,46 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
           body: JSON.stringify({ badgePayload: trimmed, stationName }),
         });
         const data = (await res.json()) as ScanResult;
-        await stopCameraPromise;
         hideOverlay();
         setResult(data);
-        if (data.ok) {
-          // Refresh the server tree in a transition so the success message paints
-          // immediately; the scan-history list catches up without blocking input.
-          startTransition(() => router.refresh());
+        if (data.ok && !data.duplicate && data.historyEntry) {
+          onHistoryEntry?.(data.historyEntry);
         }
+        playScanFeedback(data.ok);
       } catch {
-        await stopCameraPromise;
         hideOverlay();
-        setResult({ ok: false, reason: "error", error: "Couldn't reach the server. Try again." });
+        const failure: ScanResult = { ok: false, reason: "error", error: "Couldn't reach the server. Try again." };
+        setResult(failure);
+        playScanFeedback(false);
       } finally {
         setBusy(false);
       }
     },
-    [router, stationName, stopCamera, showOverlay, hideOverlay, startTransition],
+    [hideOverlay, onHistoryEntry, showOverlay, stationName],
   );
+
+  const continueScanning = useCallback(() => {
+    setResult(null);
+    setBusy(false);
+    scanInFlightRef.current = false;
+    hideOverlay();
+
+    if (mode === "manual") {
+      manualFormRef.current?.reset();
+      window.requestAnimationFrame(() => manualFormRef.current?.querySelector<HTMLInputElement>("input")?.focus());
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      try {
+        const scanner = scannerRef.current;
+        if (!scanner) throw new Error("Scanner is unavailable");
+        scanner.resume();
+      } catch {
+        restartCamera();
+      }
+    });
+  }, [hideOverlay, mode, restartCamera]);
 
   const openManual = useCallback(() => {
     void stopCamera();
@@ -172,15 +273,16 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
 
     const safeStop = () => {
       if (!scanner) return;
+      if (scannerRef.current === scanner) scannerRef.current = null;
       try {
         scanner.stop().catch(() => {});
       } catch {
-        /* scanner was never started */
+        // The scanner may not have started.
       }
       try {
         scanner.clear();
       } catch {
-        /* nothing to clear */
+        // Nothing to clear.
       }
     };
 
@@ -201,19 +303,17 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
         await scanner.start(
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 240, height: 240 } },
-          (decoded: string) => {
-            void handlePayload(decoded);
-          },
+          (decoded: string) => void handlePayload(decoded),
           () => {
-            /* ignore per-frame decode errors */
+            // Per-frame decode misses are expected.
           },
         );
         started = true;
-        setCameraStarted(true);
         if (cancelled) {
           safeStop();
           return;
         }
+        setCameraStarted(true);
       } catch (err) {
         if (!cancelled) {
           setCameraActive(false);
@@ -225,24 +325,13 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
 
     return () => {
       cancelled = true;
-      if (started) safeStop();
+      if (started || scanner) safeStop();
       setCameraStarted(false);
     };
-  }, [mode, cameraActive, handlePayload]);
+  }, [cameraActive, cameraCycle, handlePayload, mode]);
 
   if (!participationOpen) {
     return <div className="alert alert-danger">Participation is closed, so stamps can&apos;t be collected.</div>;
-  }
-
-  if (result) {
-    return (
-      <div className="stack">
-        <ResultBanner result={result} />
-        <button type="button" className="btn btn-primary btn-block" onClick={reset}>
-          Scan next delegate
-        </button>
-      </div>
-    );
   }
 
   return (
@@ -298,6 +387,7 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
         <>
           <p className="lead">Type the delegate&apos;s badge code.</p>
           <form
+            ref={manualFormRef}
             className="form"
             style={{ marginTop: "1rem" }}
             onSubmit={(event) => {
@@ -322,6 +412,7 @@ export function VendorScanner({ participationOpen, stationName }: { participatio
         </>
       )}
       <LoadingOverlay show={overlayVisible} message={overlayMessage} variant="translucent" />
+      {result ? <ScanResultDialog result={result} onContinue={continueScanning} /> : null}
     </div>
   );
 }

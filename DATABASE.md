@@ -139,6 +139,7 @@ Winners drawn during a round. A delegate can appear only once until the winner h
 
 | Function | Purpose |
 | --- | --- |
+| `delegate_home_progress(uuid)` | Returns the valid delegate session, delegate details, active stations, and completion flags in one round trip for the delegate home page. |
 | `admin_participant_progress()` | Returns delegate progress, with `survey_submitted` derived from the Final Survey station stamp. |
 | `admin_station_summaries()` | Returns per-station completion totals for the admin dashboard and exports. |
 | `admin_scan_audit_logs()` | Returns audit entries joined to delegate and station names. |

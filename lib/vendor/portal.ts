@@ -11,6 +11,7 @@ import { type Delegate, extractRegistrationNumberFromBadgePayload } from "@/lib/
 import { isFinalSurveyStationName, stationFromRow, type Station } from "@/lib/shared/station";
 import { delegateFromRow } from "@/lib/delegate-session";
 import { formatParticipantName } from "@/lib/shared/participant";
+import { STATION_SCAN_HISTORY_LIMIT } from "@/lib/vendor/config";
 
 export type StationDashboardResult =
   | { found: false }
@@ -56,7 +57,13 @@ export type VendorScanAuditLogInput = {
 };
 
 export type VendorScanResult =
-  | { ok: true; delegate: { fullName: string }; duplicate: boolean; message: string }
+  | {
+      ok: true;
+      delegate: { fullName: string };
+      duplicate: boolean;
+      message: string;
+      historyEntry?: StationScanHistoryEntry;
+    }
   | { ok: false; reason: "not-registered" | "invalid" | "closed" | "locked"; error: string };
 
 export type VendorPortalStore = VendorSessionStore & {
@@ -227,6 +234,15 @@ export async function collectStampForStationScan({
     ok: true,
     delegate: { fullName: delegateDisplayName },
     duplicate: false,
+    historyEntry: stampResult.stamp
+      ? {
+          id: stampResult.stamp.id,
+          delegateFullName: delegateDisplayName,
+          stationId: stampResult.stamp.stationId,
+          stationName: station.name,
+          collectedAt: stampResult.stamp.collectedAt,
+        }
+      : undefined,
     message: isFinalSurveyStation
       ? `${delegateDisplayName} completed the Final Survey station and is entered into the lucky draw.`
       : `Successful Stamped ${delegateDisplayName} QR! Ask him/her to refresh their page to look at the stamp!`,
@@ -329,7 +345,8 @@ export class SupabaseVendorStore implements VendorPortalStore {
       .from("delegate_station_stamps")
       .select("id, station_id, collected_at, delegates(title, full_name), stations(name)")
       .eq("station_id", stationId)
-      .order("collected_at", { ascending: false });
+      .order("collected_at", { ascending: false })
+      .limit(STATION_SCAN_HISTORY_LIMIT);
 
     if (error) {
       throw new Error(error.message);

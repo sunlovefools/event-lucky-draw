@@ -1,9 +1,12 @@
-import React from "react";
+"use client";
+
+import React, { useCallback, useEffect, useState } from "react";
 
 import { RefreshButton } from "@/app/components/refresh-button";
 import { VendorScanner } from "@/app/vendor/vendor-scanner";
 import { friendlyError } from "@/lib/messages";
-import type { StationDashboardResult } from "@/lib/vendor/portal";
+import type { StationDashboardResult, StationScanHistoryEntry } from "@/lib/vendor/portal";
+import { STATION_SCAN_HISTORY_LIMIT } from "@/lib/vendor/config";
 
 function formatTime(iso: string) {
   try {
@@ -13,21 +16,22 @@ function formatTime(iso: string) {
   }
 }
 
-export function VendorPortal({ dashboard, error }: { dashboard: StationDashboardResult; error?: string }) {
-  if (!dashboard.found) {
-    return (
-      <main className="shell" id="main">
-        <section className="hero" aria-labelledby="station-not-found-title">
-          <p className="eyebrow">Exhibition station</p>
-          <h1 id="station-not-found-title">Station not found</h1>
-          <p className="lead">Check the station link or ask an event organizer for help.</p>
-        </section>
-      </main>
-    );
-  }
-
+function ActiveVendorPortal({
+  dashboard,
+  error,
+}: {
+  dashboard: Extract<StationDashboardResult, { found: true }>;
+  error?: string;
+}) {
   const { station, participationOpen, scanHistory } = dashboard;
+  const [visibleHistory, setVisibleHistory] = useState(scanHistory);
   const errorMessage = friendlyError(error);
+
+  useEffect(() => setVisibleHistory(scanHistory), [scanHistory]);
+
+  const addHistoryEntry = useCallback((entry: StationScanHistoryEntry) => {
+    setVisibleHistory((current) => [entry, ...current.filter((scan) => scan.id !== entry.id)].slice(0, STATION_SCAN_HISTORY_LIMIT));
+  }, []);
 
   return (
     <main className="shell" id="main">
@@ -56,22 +60,22 @@ export function VendorPortal({ dashboard, error }: { dashboard: StationDashboard
         <p className="hint" style={{ marginTop: "0", marginBottom: "1rem" }}>
           Scan the delegate&apos;s badge QR (the same one they use to register). The stamp will then be added to their passport instantly.
         </p>
-        <VendorScanner participationOpen={participationOpen} stationName={station.name} />
+        <VendorScanner participationOpen={participationOpen} stationName={station.name} onHistoryEntry={addHistoryEntry} />
       </section>
 
       <section className="card" aria-labelledby="scan-history-title">
         <div className="section-head">
-          <h2 id="scan-history-title">Station scan history</h2>
+          <h2 id="scan-history-title">Recent station scans</h2>
           <div className="head-actions">
-            <span className="badge badge-neutral">{scanHistory.length} scans</span>
+            <span className="badge badge-neutral">Latest {visibleHistory.length} scans</span>
             <RefreshButton label="Refresh list" />
           </div>
         </div>
-        {scanHistory.length === 0 ? (
+        {visibleHistory.length === 0 ? (
           <p className="empty">No scans yet.</p>
         ) : (
           <ul className="list">
-            {scanHistory.map((scan) => (
+            {visibleHistory.map((scan) => (
               <li key={scan.id} className="list-item">
                 <div className="row-between">
                   <span className="list-item-title">{scan.delegateFullName}</span>
@@ -86,3 +90,18 @@ export function VendorPortal({ dashboard, error }: { dashboard: StationDashboard
   );
 }
 
+export function VendorPortal({ dashboard, error }: { dashboard: StationDashboardResult; error?: string }) {
+  if (!dashboard.found) {
+    return (
+      <main className="shell" id="main">
+        <section className="hero" aria-labelledby="station-not-found-title">
+          <p className="eyebrow">Exhibition station</p>
+          <h1 id="station-not-found-title">Station not found</h1>
+          <p className="lead">Check the station link or ask an event organizer for help.</p>
+        </section>
+      </main>
+    );
+  }
+
+  return <ActiveVendorPortal dashboard={dashboard} error={error} />;
+}

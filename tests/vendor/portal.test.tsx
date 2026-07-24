@@ -39,7 +39,7 @@ describe("vendor portal dashboard", () => {
     });
   });
 
-  it("returns full station scan history for polling", async () => {
+  it("returns recent station scan history for the initial display", async () => {
     const result = await getStationDashboard({
       store: createStore({
         async findStationByName(stationName) {
@@ -93,12 +93,20 @@ describe("vendor stamp scan", () => {
       }),
       session: vendorSession,
       badgePayload: "REG-001",
+      now: () => new Date("2025-01-01T00:00:00.000Z"),
     });
 
     expect(result).toEqual({
       ok: true,
       delegate: { fullName: "Ada Lovelace" },
       duplicate: false,
+      historyEntry: {
+        id: "stamp-1",
+        delegateFullName: "Ada Lovelace",
+        stationId: "station-1",
+        stationName: "AI Booth",
+        collectedAt: "2025-01-01T00:00:00.000Z",
+      },
       message: "Successful Stamped Ada Lovelace QR! Ask him/her to refresh their page to look at the stamp!",
     });
   });
@@ -192,6 +200,13 @@ describe("vendor stamp scan", () => {
       ok: true,
       delegate: { fullName: "Ada Lovelace" },
       duplicate: false,
+      historyEntry: {
+        id: "stamp-final",
+        delegateFullName: "Ada Lovelace",
+        stationId: "final-survey",
+        stationName: "Final Survey",
+        collectedAt: "2025-01-01T00:00:00.000Z",
+      },
       message: "Ada Lovelace completed the Final Survey station and is entered into the lucky draw.",
     });
     expect(markedEligible).toEqual([{ delegateId: "delegate-1", eligibleAt: "2025-01-01T00:00:00.000Z" }]);
@@ -301,20 +316,48 @@ describe("vendor portal UI", () => {
     expect(screen.queryByRole("button", { name: "Allow camera access" })).not.toBeInTheDocument();
   });
 
-  it("shows the result banner after manually stamping without changing the hook order", async () => {
+  it("shows a result dialog and updates recent history locally after a manual stamp", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      json: async () => ({ ok: true, duplicate: false, message: "Stamped Ada Lovelace." }),
+      json: async () => ({
+        ok: true,
+        duplicate: false,
+        message: "Stamped Ada Lovelace.",
+        historyEntry: {
+          id: "stamp-1",
+          delegateFullName: "Ada Lovelace",
+          stationId: "station-1",
+          stationName: "AI Booth",
+          collectedAt: "2025-01-01T00:00:00.000Z",
+        },
+      }),
     } as Response);
 
     try {
-      render(<VendorScanner participationOpen={true} stationName="AI Booth" />);
+      render(
+        <VendorPortal
+          dashboard={{
+            found: true,
+            station: { id: "station-1", name: "AI Booth", active: true },
+            participationOpen: true,
+            scanHistory: [],
+          }}
+        />,
+      );
 
       fireEvent.click(screen.getByRole("button", { name: "Type code instead" }));
       fireEvent.change(screen.getByLabelText("Badge code"), { target: { value: "REG-001" } });
       fireEvent.click(screen.getByRole("button", { name: "Stamp delegate" }));
 
-      await waitFor(() => expect(screen.getByText(/Stamped Ada Lovelace/i)).toBeInTheDocument());
+      const dialog = await screen.findByRole("dialog", { name: "Stamped!" });
+      expect(dialog).toHaveTextContent("Stamped Ada Lovelace.");
+      expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+      expect(screen.getByText("Latest 1 scans")).toBeInTheDocument();
+      expect(screen.queryByText("No scans yet.")).not.toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledWith("/station/api/scan", expect.objectContaining({ method: "POST" }));
+
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Stamped!" })).not.toBeInTheDocument());
+      expect(screen.getByLabelText("Badge code")).toHaveValue("");
     } finally {
       fetchMock.mockRestore();
     }

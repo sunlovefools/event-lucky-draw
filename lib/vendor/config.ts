@@ -1,0 +1,1 @@
+export const STATION_SCAN_HISTORY_LIMIT = 30;

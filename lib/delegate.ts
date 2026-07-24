@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase";
-import { delegateFromRow, findValidDelegateSession as queryValidDelegateSession, type DelegateRow, type SessionDelegate, type ValidDelegateSession } from "@/lib/delegate-session";
+import { delegateFromRow, type DelegateRow, type SessionDelegate } from "@/lib/delegate-session";
 import { normalizeRegistrationNumber } from "@/lib/shared/normalize";
 import { isFinalSurveyStationName, sortStationsWithFinalSurveyLast } from "@/lib/shared/station";
 
@@ -48,10 +48,13 @@ export type DelegateFinalSurvey = FinalSurveyStatus & {
 export type DelegateStore = {
   findDelegateByRegistrationNumber(registrationNumber: string): Promise<Delegate | null>;
   createDelegateSession(delegateId: string, expiresAt: string): Promise<DelegateSession>;
-  findValidDelegateSession(sessionId: string, nowIso: string): Promise<ValidDelegateSession | null>;
-  listActiveStations(): Promise<ActiveStation[]>;
-  listDelegateStampStationIds(delegateId: string): Promise<string[]>;
-  readFinalSurveyStatus(delegateId: string): Promise<FinalSurveyStatus>;
+  readDelegateHome(sessionId: string, nowIso: string): Promise<DelegateHomeSnapshot | null>;
+};
+
+export type DelegateHomeSnapshot = {
+  delegate: Delegate;
+  stations: Array<ActiveStation & { completed: boolean }>;
+  finalSurveyStatus: FinalSurveyStatus;
 };
 
 export type DelegateHomeResult =
@@ -156,17 +159,13 @@ export async function getDelegateHome({
     return { identified: false };
   }
 
-  const session = await store.findValidDelegateSession(sessionId, now().toISOString());
-  if (!session) {
+  const snapshot = await store.readDelegateHome(sessionId, now().toISOString());
+  if (!snapshot) {
     return { identified: false };
   }
 
-  const [activeStations, stampedStationIds, finalSurveyStatus] = await Promise.all([
-    store.listActiveStations(),
-    store.listDelegateStampStationIds(session.delegate.id),
-    store.readFinalSurveyStatus(session.delegate.id),
-  ]);
-  const stampedStationIdSet = new Set(stampedStationIds);
+  const activeStations = snapshot.stations.map(({ id, name }) => ({ id, name }));
+  const stampedStationIdSet = new Set(snapshot.stations.filter((station) => station.completed).map((station) => station.id));
   const displayStations = sortStationsWithFinalSurveyLast(activeStations);
   const finalSurveyStation = displayStations.find((station) => isFinalSurveyStationName(station.name));
   const prerequisiteStations = displayStations.filter((station) => !isFinalSurveyStationName(station.name));
@@ -191,7 +190,7 @@ export async function getDelegateHome({
 
   return {
     identified: true,
-    delegate: session.delegate,
+    delegate: snapshot.delegate,
     progress: {
       stations,
       completedCount,
@@ -200,28 +199,27 @@ export async function getDelegateHome({
       readyForFinalSurvey,
     },
     finalSurvey: {
-      available: readyForFinalSurvey && !finalSurveyCompleted && !finalSurveyStatus.submitted && !finalSurveyStatus.eligible,
-      submitted: finalSurveyStatus.submitted,
-      eligible: finalSurveyStatus.eligible,
-      eligibleAt: finalSurveyStatus.eligibleAt,
+      available: readyForFinalSurvey && !finalSurveyCompleted && !snapshot.finalSurveyStatus.submitted && !snapshot.finalSurveyStatus.eligible,
+      submitted: snapshot.finalSurveyStatus.submitted,
+      eligible: snapshot.finalSurveyStatus.eligible,
+      eligibleAt: snapshot.finalSurveyStatus.eligibleAt,
     },
   };
 }
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
-type ActiveStationRow = {
-  id: string;
-  name: string;
-};
-
-type DelegateStampRow = {
-  station_id: string;
-};
-
-type DelegateWithEligibilityRow = DelegateRow & {
-  eligible_at?: string | null;
-  draw_status?: string | null;
+type DelegateHomeProgressRow = {
+  session_id: string;
+  delegate_id: string;
+  title: string | null;
+  full_name: string;
+  registration_number: string;
+  eligible_at: string | null;
+  draw_status: string;
+  station_id: string | null;
+  station_name: string | null;
+  station_completed: boolean;
 };
 
 export class SupabaseDelegateStore implements DelegateStore {
@@ -256,50 +254,23 @@ export class SupabaseDelegateStore implements DelegateStore {
     return { id: data.id, delegateId: data.delegate_id, expiresAt: data.expires_at };
   }
 
-  async findValidDelegateSession(sessionId: string, nowIso: string): Promise<ValidDelegateSession | null> {
-    return queryValidDelegateSession(this.supabase, sessionId, nowIso);
-  }
-
-  async listActiveStations(): Promise<ActiveStation[]> {
-    const { data, error } = await this.supabase
-      .from("stations")
-      .select("id, name")
-      .eq("active", true)
-      .order("name");
+  async readDelegateHome(sessionId: string, _nowIso: string): Promise<DelegateHomeSnapshot | null> {
+    const { data, error } = await this.supabase.rpc("delegate_home_progress", {
+      p_session_id: sessionId,
+    });
 
     if (error) {
       throw new Error(error.message);
     }
 
-    return (data ?? []).map((station: ActiveStationRow) => ({ id: station.id, name: station.name }));
-  }
-
-  async listDelegateStampStationIds(delegateId: string): Promise<string[]> {
-    const { data, error } = await this.supabase
-      .from("delegate_station_stamps")
-      .select("station_id")
-      .eq("delegate_id", delegateId);
-
-    if (error) {
-      throw new Error(error.message);
+    const rows = (data ?? []) as DelegateHomeProgressRow[];
+    const first = rows[0];
+    if (!first) {
+      return null;
     }
 
-    return (data ?? []).map((stamp: DelegateStampRow) => stamp.station_id);
-  }
-
-  async readFinalSurveyStatus(delegateId: string): Promise<FinalSurveyStatus> {
-    const delegateResult = await this.supabase
-      .from("delegates")
-      .select("id, registration_number, full_name, eligible_at, draw_status")
-      .eq("id", delegateId)
-      .single<DelegateWithEligibilityRow>();
-
-    if (delegateResult.error) {
-      throw new Error(delegateResult.error.message);
-    }
-
-    const drawStatus = delegateResult.data.draw_status;
-    const eligibleAt = delegateResult.data.eligible_at ?? null;
+    const drawStatus = first.draw_status;
+    const eligibleAt = first.eligible_at ?? null;
     let eligible: boolean;
     if (drawStatus === "eligible") {
       eligible = true;
@@ -313,11 +284,22 @@ export class SupabaseDelegateStore implements DelegateStore {
     }
 
     return {
-      // The form-based survey was retired. Completion is now represented by a
-      // Final Survey station stamp and eligibility timestamp.
-      submitted: false,
-      eligible,
-      eligibleAt,
+      delegate: delegateFromRow({
+        id: first.delegate_id,
+        registration_number: first.registration_number,
+        title: first.title,
+        full_name: first.full_name,
+      }),
+      stations: rows.flatMap((row) => row.station_id && row.station_name
+        ? [{ id: row.station_id, name: row.station_name, completed: row.station_completed }]
+        : []),
+      finalSurveyStatus: {
+        // The form-based survey was retired. Completion is represented by the
+        // Final Survey station stamp and eligibility timestamp.
+        submitted: false,
+        eligible,
+        eligibleAt,
+      },
     };
   }
 }

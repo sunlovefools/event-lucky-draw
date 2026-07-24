@@ -1,0 +1,194 @@
+{
+  "generatedAt": "2026-07-24T09:22:22.040Z",
+  "target": "https://event-lucky-draw-git-master-sunlovefools-projects.vercel.app",
+  "configuration": {
+    "delegates": 300,
+    "stations": 10,
+    "scannerConcurrency": 10,
+    "sharedDatabaseMode": true,
+    "stationSource": "temporary"
+  },
+  "phases": [
+    {
+      "name": "warmup",
+      "durationMs": 5794.236599999999
+    },
+    {
+      "name": "ten_station_delegate_wave",
+      "durationMs": 76097.8694
+    },
+    {
+      "name": "prepare_prerequisite_stamps",
+      "durationMs": 2907.3166999999958
+    },
+    {
+      "name": "delegate_refresh_spike",
+      "durationMs": 10636.730299999996
+    },
+    {
+      "name": "final_survey_scans",
+      "durationMs": 83333.1816
+    },
+    {
+      "name": "duplicate_race",
+      "durationMs": 2144.9550000000163
+    }
+  ],
+  "overall": {
+    "requests": 1530,
+    "successes": 1524,
+    "failures": 6,
+    "statusCounts": {
+      "0": 4,
+      "200": 1526
+    },
+    "meanMs": 1775.1493613725497,
+    "p50Ms": 1412.5891999999985,
+    "p90Ms": 3685.7423000000126,
+    "p95Ms": 4152.920700000002,
+    "p99Ms": 4297.412500000006,
+    "maxMs": 10623.5063
+  },
+  "byLabel": {
+    "health_warmup": {
+      "requests": 10,
+      "successes": 10,
+      "failures": 0,
+      "statusCounts": {
+        "200": 10
+      },
+      "meanMs": 1102.3947299999998,
+      "p50Ms": 925.9997999999996,
+      "p90Ms": 2179.6479,
+      "p95Ms": 2182.5912000000003,
+      "p99Ms": 2182.5912000000003,
+      "maxMs": 2182.5912000000003
+    },
+    "scan_preflight": {
+      "requests": 1,
+      "successes": 1,
+      "failures": 0,
+      "statusCounts": {
+        "200": 1
+      },
+      "meanMs": 2372.1561999999994,
+      "p50Ms": 2372.1561999999994,
+      "p90Ms": 2372.1561999999994,
+      "p95Ms": 2372.1561999999994,
+      "p99Ms": 2372.1561999999994,
+      "maxMs": 2372.1561999999994
+    },
+    "station_refresh_regular": {
+      "requests": 270,
+      "successes": 270,
+      "failures": 0,
+      "statusCounts": {
+        "200": 270
+      },
+      "meanMs": 871.3679070370365,
+      "p50Ms": 745.3801000000021,
+      "p90Ms": 1166.4670000000006,
+      "p95Ms": 1240.9846000000034,
+      "p99Ms": 2422.7752000000037,
+      "maxMs": 6131.515200000002
+    },
+    "scan_regular": {
+      "requests": 269,
+      "successes": 267,
+      "failures": 2,
+      "statusCounts": {
+        "0": 2,
+        "200": 267
+      },
+      "meanMs": 1670.5643557620822,
+      "p50Ms": 1398.9569000000047,
+      "p90Ms": 1902.5453999999954,
+      "p95Ms": 2305.1719999999987,
+      "p99Ms": 8291.341400000001,
+      "maxMs": 10623.5063
+    },
+    "scan_final_locked": {
+      "requests": 30,
+      "successes": 30,
+      "failures": 0,
+      "statusCounts": {
+        "200": 30
+      },
+      "meanMs": 1701.8770033333324,
+      "p50Ms": 1397.7064000000028,
+      "p90Ms": 1816.0971999999965,
+      "p95Ms": 2277.2646999999997,
+      "p99Ms": 7664.024299999999,
+      "maxMs": 7664.024299999999
+    },
+    "station_refresh_final": {
+      "requests": 330,
+      "successes": 330,
+      "failures": 0,
+      "statusCounts": {
+        "200": 330
+      },
+      "meanMs": 862.3008124242427,
+      "p50Ms": 777.2133999999933,
+      "p90Ms": 1055.1050000000105,
+      "p95Ms": 1181.0191999999952,
+      "p99Ms": 1414.6186000000162,
+      "maxMs": 1809.4747000000207
+    },
+    "delegate_refresh_spike": {
+      "requests": 300,
+      "successes": 298,
+      "failures": 2,
+      "statusCounts": {
+        "0": 2,
+        "200": 298
+      },
+      "meanMs": 3633.8429969999984,
+      "p50Ms": 3674.440899999987,
+      "p90Ms": 4241.987799999988,
+      "p95Ms": 4277.689600000012,
+      "p99Ms": 4417.531300000002,
+      "maxMs": 10428.143800000005
+    },
+    "scan_final": {
+      "requests": 300,
+      "successes": 298,
+      "failures": 2,
+      "statusCounts": {
+        "200": 300
+      },
+      "meanMs": 1870.5040199999996,
+      "p50Ms": 1823.3896999999997,
+      "p90Ms": 2029.409400000004,
+      "p95Ms": 2233.575600000011,
+      "p99Ms": 2524.546300000002,
+      "maxMs": 2618.8894
+    },
+    "scan_duplicate": {
+      "requests": 20,
+      "successes": 20,
+      "failures": 0,
+      "statusCounts": {
+        "200": 20
+      },
+      "meanMs": 1550.5794749999973,
+      "p50Ms": 1450,
+      "p90Ms": 1831.3696000000054,
+      "p95Ms": 1941.869800000015,
+      "p99Ms": 2143.505899999989,
+      "maxMs": 2143.505899999989
+    }
+  },
+  "correctness": {
+    "expectedStamps": 3000,
+    "actualStamps": 2996,
+    "uniqueStampPairs": 2996,
+    "expectedEligibleDelegates": 300,
+    "actualEligibleDelegates": 298,
+    "auditSuccesses": 566,
+    "auditDuplicates": 20,
+    "auditOther": 32
+  },
+  "prefix": "LOADTEST-20260724091912-",
+  "cleanupComplete": true
+}
