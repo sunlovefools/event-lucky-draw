@@ -69,21 +69,21 @@ describe("admin lucky draw display", () => {
 
     render(<AdminDrawScreen initialState={{ status: "waiting", winner: null }} pollMs={3000} minRevealMs={2000} />);
 
-    expect(screen.getByText("Click the button to see who is the lucky one.")).toBeInTheDocument();
+    expect(screen.getByText("Ready for the draw")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000);
     });
 
     expect(fetch).toHaveBeenCalledWith("/api/draw-state", { cache: "no-store" });
-    expect(screen.getByText("Shuffling eligible participants")).toBeInTheDocument();
+    expect(screen.getByText("Scanning eligible participants")).toBeInTheDocument();
     expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
 
-    expect(screen.getByText("Winner")).toBeInTheDocument();
+    expect(screen.getByText("✦ The lucky winner is ✦")).toBeInTheDocument();
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
     expect(screen.getAllByText(/REG-001/).length).toBeGreaterThan(0);
   });

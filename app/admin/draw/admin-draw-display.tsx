@@ -2,14 +2,12 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { Confetti } from "@/app/components/confetti";
 import type { PublicDrawState } from "@/lib/public-draw";
 
 type DisplayPhase = "waiting" | "animating" | "revealed";
-
 type Winner = NonNullable<PublicDrawState["winner"]>;
 
-const IDLE_MESSAGE = "Click the button to see who is the lucky one.";
+const IDLE_MESSAGE = "READY";
 const FALLBACK_SLOT_NAMES = ["Lucky delegate", "Eligible participant", "Next winner"];
 
 function pickSlotName(names: string[], previous: string) {
@@ -17,10 +15,30 @@ function pickSlotName(names: string[], previous: string) {
   if (pool.length === 1) return pool[0];
 
   let next = previous;
-  while (next === previous) {
-    next = pool[Math.floor(Math.random() * pool.length)];
-  }
+  while (next === previous) next = pool[Math.floor(Math.random() * pool.length)];
   return next;
+}
+
+function Celebration() {
+  return (
+    <div className="draw-confetti" aria-hidden="true">
+      {Array.from({ length: 54 }, (_, index) => (
+        <i
+          key={index}
+          style={{
+            "--x": `${(index * 37) % 101}%`,
+            "--delay": `${(index % 9) * 0.11}s`,
+            "--duration": `${2.6 + (index % 7) * 0.23}s`,
+            "--drift": `${((index * 29) % 240) - 120}px`,
+            "--spin": `${360 + (index % 4) * 180}deg`,
+            "--tone": index % 6,
+          } as React.CSSProperties}
+        >
+          {index % 3 === 0 ? "✦" : "◆"}
+        </i>
+      ))}
+    </div>
+  );
 }
 
 export function AdminDrawScreen({
@@ -34,12 +52,11 @@ export function AdminDrawScreen({
   pollMs?: number;
   minRevealMs?: number;
 }) {
-  // Fresh page loads must always start idle, regardless of any winner the server
-  // may still have in history. Only draws observed after this mount are revealed.
   const mountedAt = useRef(Date.now());
   const [drawState, setDrawState] = useState<PublicDrawState>({ status: "waiting", winner: null });
   const [phase, setPhase] = useState<DisplayPhase>("waiting");
   const [slotName, setSlotName] = useState(IDLE_MESSAGE);
+  const [previousSlotName, setPreviousSlotName] = useState(IDLE_MESSAGE);
   const [drawError, setDrawError] = useState<string | null>(null);
   const [drawPending, setDrawPending] = useState(false);
   const visibleWinnerId = useRef<string | null>(null);
@@ -53,13 +70,26 @@ export function AdminDrawScreen({
     }
   }
 
+  function setNextSlotName(next: string) {
+    setPreviousSlotName(slotName);
+    setSlotName(next);
+  }
+
   function startSlot() {
     stopSlot();
     setPhase("animating");
-    setSlotName((current) => pickSlotName(names, current));
+    setSlotName((current) => {
+      const next = pickSlotName(names, current);
+      setPreviousSlotName(current);
+      return next;
+    });
     slotTimer.current = setInterval(() => {
-      setSlotName((current) => pickSlotName(names, current));
-    }, 65);
+      setSlotName((current) => {
+        const next = pickSlotName(names, current);
+        setPreviousSlotName(current);
+        return next;
+      });
+    }, 75);
   }
 
   function revealWinner(winner: Winner, startedAt = Date.now()) {
@@ -68,7 +98,7 @@ export function AdminDrawScreen({
       stopSlot();
       visibleWinnerId.current = winner.id;
       setDrawState({ status: "winner", winner });
-      setSlotName(winner.fullName);
+      setNextSlotName(winner.fullName);
       setPhase("revealed");
       setDrawPending(false);
     }, remaining);
@@ -76,31 +106,20 @@ export function AdminDrawScreen({
 
   useEffect(() => {
     let cancelled = false;
-
     async function poll() {
       if (drawPending || phase === "animating") return;
       const response = await fetch("/api/draw-state", { cache: "no-store" });
       if (!response.ok) return;
       const next = (await response.json()) as PublicDrawState;
-      if (cancelled) return;
-
-      const nextWinner = next.winner;
-      if (!nextWinner) return;
-
-      const wonAfterMount = new Date(nextWinner.wonAt).getTime() >= mountedAt.current;
-      if (wonAfterMount && nextWinner.id !== visibleWinnerId.current) {
+      if (cancelled || !next.winner) return;
+      if (new Date(next.winner.wonAt).getTime() >= mountedAt.current && next.winner.id !== visibleWinnerId.current) {
         const startedAt = Date.now();
         startSlot();
-        revealWinner(nextWinner, startedAt);
+        revealWinner(next.winner, startedAt);
       }
     }
-
     const interval = setInterval(poll, pollMs);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-      stopSlot();
-    };
+    return () => { cancelled = true; clearInterval(interval); stopSlot(); };
   }, [drawPending, phase, pollMs, minRevealMs, names]);
 
   useEffect(() => () => stopSlot(), []);
@@ -111,77 +130,56 @@ export function AdminDrawScreen({
     setDrawPending(true);
     setDrawState({ status: "waiting", winner: null });
     startSlot();
-
     try {
       const response = await fetch("/api/draw", { method: "POST", credentials: "include" });
       const result = (await response.json()) as { ok: true; winner: Winner } | { ok: false; error: string };
-      if (result.ok) {
-        revealWinner(result.winner, startedAt);
-      } else {
-        stopSlot();
-        setDrawError(result.error);
-        setSlotName(IDLE_MESSAGE);
-        setPhase("waiting");
-        setDrawPending(false);
+      if (result.ok) revealWinner(result.winner, startedAt);
+      else {
+        stopSlot(); setDrawError(result.error); setNextSlotName(IDLE_MESSAGE); setPhase("waiting"); setDrawPending(false);
       }
     } catch {
-      stopSlot();
-      setDrawError("Could not reach the server.");
-      setSlotName(IDLE_MESSAGE);
-      setPhase("waiting");
-      setDrawPending(false);
+      stopSlot(); setDrawError("Could not reach the server."); setNextSlotName(IDLE_MESSAGE); setPhase("waiting"); setDrawPending(false);
     }
   }
 
   const winner = drawState.winner;
+  const status = drawError ?? (phase === "animating" ? "Scanning eligible participants" : phase === "revealed" ? `Registration #${winner?.registrationNumber}` : "Ready for the draw");
 
   return (
-    <main className="public-stage" id="main" aria-live="polite">
-      {phase === "revealed" && winner ? <Confetti /> : null}
+    <main className={`lucky-draw-screen lucky-draw-screen--${phase}`} id="main" aria-live="polite">
+      {phase === "revealed" && winner ? <Celebration /> : null}
+      <div className="lucky-draw-grid" aria-hidden="true" />
+      <div className="lucky-draw-orb lucky-draw-orb--cyan" aria-hidden="true" />
+      <div className="lucky-draw-orb lucky-draw-orb--magenta" aria-hidden="true" />
+      <div className="lucky-draw-ring" aria-hidden="true"><svg viewBox="0 0 200 200" fill="none"><circle cx="100" cy="100" r="70" /><circle cx="100" cy="100" r="55" /><circle cx="100" cy="100" r="85" /><circle cx="100" cy="100" r="40" /></svg></div>
 
-      <div className="draw-card draw-card--fullscreen">
-        <p className="eyebrow">Admin display</p>
-        <h1>Lucky Draw</h1>
+      <section className="lucky-draw-console">
+        <h1 className="visually-hidden">Lucky Draw</h1>
+        <header className="lucky-draw-header">
+          <p className="lucky-draw-kicker">1st Conjoint MOFAS ASM 2026</p>
+          <p className="lucky-draw-title">MOFAS ASM 2026 <span>Lucky Draw</span></p>
+        </header>
 
-        {phase === "waiting" ? (
-          <div className="center draw-screen-state">
-            <div className="pulse-ring" />
-            <p className="draw-label">Ready</p>
-            <p className="draw-idle-message">{IDLE_MESSAGE}</p>
+        <div className="lucky-draw-stage">
+          <p className="lucky-draw-winner-label">{phase === "revealed" ? "✦ The lucky winner is ✦" : "✦ And the winner is …"}</p>
+          <div className="lucky-draw-slot-machine">
+            <div className="lucky-draw-slot-window">
+              <div className={`lucky-draw-slot-track ${phase === "animating" ? "is-spinning" : ""}`}>
+                <div className="lucky-draw-slot-name">{previousSlotName}</div>
+                <div className="lucky-draw-slot-name">{slotName}</div>
+              </div>
+            </div>
           </div>
-        ) : null}
-
-        {phase === "animating" ? (
-          <div className="center draw-screen-state">
-            <p className="draw-label">Shuffling eligible participants</p>
-            <p className="shuffle slot-name" aria-hidden="true">{slotName}</p>
-            <p className="draw-winner-reg">Finding the lucky one…</p>
+          <div className="lucky-draw-indicators" aria-hidden="true">
+            {Array.from({ length: 8 }, (_, index) => <span className={`lucky-draw-dot ${phase === "animating" && index % 3 === 0 ? "is-active" : ""}`} key={index} />)}
           </div>
-        ) : null}
-
-        {phase === "revealed" && winner ? (
-          <div className="center reveal draw-screen-state">
-            <p className="draw-label">The lucky one is</p>
-            <p className="draw-winner-name">{winner.fullName}</p>
-            <p className="draw-winner-reg">Registration #{winner.registrationNumber}</p>
-            <span className="draw-ticket">Winner</span>
-          </div>
-        ) : null}
-
-        <div className="draw-actions" style={{ marginTop: "2rem" }}>
-          <button
-            type="button"
-            className="btn btn-accent btn-lg"
-            onClick={handleDraw}
-            disabled={drawPending || phase === "animating"}
-          >
-            {drawPending ? "Drawing…" : "Draw winner"}
-          </button>
-          {drawError ? (
-            <p className="alert alert-danger" style={{ marginTop: "1rem" }}>{drawError}</p>
-          ) : null}
         </div>
-      </div>
+
+        <p className={`lucky-draw-status ${drawError ? "is-error" : ""}`}>{status}</p>
+        <button type="button" className={`lucky-draw-button ${drawPending ? "is-spinning" : ""}`} onClick={handleDraw} disabled={drawPending || phase === "animating"} aria-label="Draw winner">
+          <span aria-hidden="true">✦</span>{drawPending ? "DRAWING…" : "START DRAW"}
+        </button>
+      </section>
     </main>
   );
 }
