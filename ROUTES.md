@@ -58,6 +58,7 @@ All actions `redirect()` after running. Failure paths redirect back to the origi
 | `editVendorAction` | Save vendor form | Edit a vendor account's username / active flag. |
 | `revokeVendorSessionAction` | "Sign out device" button | Revoke one device's vendor session. A vendor account can be signed in on multiple devices at once. Failure → `login-required`. |
 | `updateDelegateNameAction` | Save delegate form | Rename a participant. |
+| `deleteAllDelegatesAction` | Participants page destructive-action dialog | After the exact `DELETE ALL DELEGATES` confirmation phrase, permanently delete all delegate records and related progress. Failure → `login-required` / `delegates-delete-confirmation-invalid`. |
 | `resetDrawRoundAction` | Admin dashboard reset form | Close the current draw round and open a fresh round. Failure → `login-required` / `draw-invalid`. |
 | `deleteDrawRoundAction` | Past-round delete form | Delete a completed non-current round and its winner-history rows. Failure → `login-required` / `draw-invalid`. |
 | `setDelegateDrawStatusAction` | "Manually include" / "Disqualify" | Set a delegate's draw status (`manual_include`, `disqualified`, etc.). |

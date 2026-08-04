@@ -121,6 +121,38 @@ describe("lucky draw", () => {
     expect(getLuckyDrawPool(participants).map((participant) => participant.id)).toEqual(["delegate-1", "delegate-2"]);
   });
 
+  it("keeps existing manually included participants in the draw pool", () => {
+    const participants = ["delegate-1", "delegate-2", "delegate-3"].map((id, index) => ({
+      id,
+      fullName: `Delegate ${index + 1}`,
+      registrationNumber: `REG-00${index + 1}`,
+      stampsCollected: 0,
+      totalActiveStations: 3,
+      surveySubmitted: false,
+      drawStatus: "manual_include" as const,
+    }));
+
+    expect(getLuckyDrawPool(participants).map((participant) => participant.id)).toEqual([
+      "delegate-1",
+      "delegate-2",
+      "delegate-3",
+    ]);
+  });
+
+  it("keeps existing disqualified participants out of the draw pool", () => {
+    const participants = [{
+      id: "delegate-1",
+      fullName: "Ada Lovelace",
+      registrationNumber: "REG-001",
+      stampsCollected: 3,
+      totalActiveStations: 3,
+      surveySubmitted: true,
+      drawStatus: "disqualified" as const,
+    }];
+
+    expect(getLuckyDrawPool(participants)).toEqual([]);
+  });
+
   it("shows the draw controls and winner history to admins", () => {
     render(
       <AdminDashboard

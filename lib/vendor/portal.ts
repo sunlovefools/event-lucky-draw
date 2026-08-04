@@ -189,7 +189,7 @@ export async function collectStampForStationScan({
       return {
         ok: false,
         reason: "locked",
-        error: "Final Survey is locked. Complete all other stations first, then scan this station.",
+        error: "Final Survey Station is locked. Collect every other station stamp to unlock it.",
       };
     }
   }
@@ -212,7 +212,7 @@ export async function collectStampForStationScan({
       delegate: { fullName: delegateDisplayName },
       duplicate: true,
       message: isFinalSurveyStation
-        ? `${delegateDisplayName} has already completed the Final Survey station.`
+        ? `${delegateDisplayName} has already completed the Final Survey Station.`
         : `${delegateDisplayName} was already collected at this station.`,
     };
   }
@@ -244,7 +244,7 @@ export async function collectStampForStationScan({
         }
       : undefined,
     message: isFinalSurveyStation
-      ? `${delegateDisplayName} completed the Final Survey station and is entered into the lucky draw.`
+      ? `${delegateDisplayName} completed the Final Survey Station and is entered into the lucky draw.`
       : `Successful Stamped ${delegateDisplayName} QR! Ask him/her to refresh their page to look at the stamp!`,
   };
 }

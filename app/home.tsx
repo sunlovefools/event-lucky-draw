@@ -73,7 +73,7 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
 
         {finalSurvey.available ? (
           <p className="alert alert-success" style={{ marginTop: "1.25rem" }}>
-            Final Survey station unlocked — scan it now to enter the lucky draw.
+            Final Survey Station unlocked — scan it now to enter the lucky draw.
           </p>
         ) : null}
       </section>
@@ -96,7 +96,7 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
           <p className="eyebrow">Almost there</p>
           <h2 id="not-eligible-title">You're not in the draw yet</h2>
           <p className="lead" style={{ margin: "0.5rem auto 0" }}>
-            Your Final Survey station stamp was recorded, but you're not eligible to enter the draw. If this looks like a mistake, please see the event crew.
+            Your Final Survey Station stamp was recorded, but you're not eligible to enter the draw. If this looks like a mistake, please see the event crew.
           </p>
         </section>
       ) : (
@@ -104,7 +104,7 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
           <p className="eyebrow">Not yet entered</p>
           <h2 id="need-stamps-title">Get all the stamps to enter the lucky draw!</h2>
           <p className="lead" style={{ margin: "0.5rem auto 0" }}>
-            Visit every regular station first. The Final Survey station stays locked until all other stamps are complete.
+            Collect every stamp above to unlock the Final Survey Station and complete your entry.
           </p>
         </section>
       )}

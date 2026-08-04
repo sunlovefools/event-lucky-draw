@@ -1,10 +1,11 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { normalizeStationId } from "@/lib/shared/normalize";
-import { stationFromRow, type Station } from "@/lib/shared/station";
+import { isFinalSurveyStationName, stationFromRow, type Station } from "@/lib/shared/station";
 import { requireAdminSession, type AdminSessionStore, SupabaseAdminAuthStore } from "@/lib/auth/admin-auth";
 
 export type StationsStore = AdminSessionStore & {
   listStations(): Promise<Station[]>;
+  findStationById(stationId: string): Promise<Station | null>;
   createStation(station: StationInput): Promise<Station>;
   updateStation(stationId: string, station: StationInput): Promise<Station>;
 };
@@ -46,6 +47,10 @@ export async function createStation({
     return { ok: false, error: validName.error };
   }
 
+  if (isFinalSurveyStationName(validName.name)) {
+    return { ok: false, error: "The Final Survey Station is created automatically." };
+  }
+
   return { ok: true, station: await store.createStation({ name: validName.name, active }) };
 }
 
@@ -74,9 +79,22 @@ export async function editStation({
     return { ok: false, error: "Station is required." };
   }
 
+  const existingStation = await store.findStationById(normalizedStationId);
+  if (!existingStation) {
+    return { ok: false, error: "Station was not found." };
+  }
+
+  if (isFinalSurveyStationName(existingStation.name)) {
+    return { ok: false, error: "The Final Survey Station cannot be changed." };
+  }
+
   const validName = validateStationName(name);
   if (!validName.ok) {
     return { ok: false, error: validName.error };
+  }
+
+  if (isFinalSurveyStationName(validName.name)) {
+    return { ok: false, error: "That name is reserved for the Final Survey Station." };
   }
 
   return {
@@ -110,6 +128,20 @@ export class SupabaseStationsStore implements StationsStore {
     }
 
     return (data ?? []).map(stationFromRow);
+  }
+
+  async findStationById(stationId: string): Promise<Station | null> {
+    const { data, error } = await this.supabase
+      .from("stations")
+      .select("id, name, active")
+      .eq("id", stationId)
+      .maybeSingle<StationRow>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data ? stationFromRow(data) : null;
   }
 
   async createStation(station: StationInput): Promise<Station> {

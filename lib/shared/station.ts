@@ -1,7 +1,8 @@
 // Single source of truth for the Station domain concept.
 // Admin stations and vendor stations share this exact shape.
 
-export const FINAL_SURVEY_STATION_NAME = "Final Survey";
+export const FINAL_SURVEY_STATION_NAME = "Final Survey Station";
+const LEGACY_FINAL_SURVEY_STATION_NAME = "Final Survey";
 
 export type Station = {
   id: string;
@@ -14,7 +15,10 @@ function normalizeStationNameForComparison(name: string) {
 }
 
 export function isFinalSurveyStationName(name: string) {
-  return normalizeStationNameForComparison(name) === normalizeStationNameForComparison(FINAL_SURVEY_STATION_NAME);
+  const normalizedName = normalizeStationNameForComparison(name);
+  return [FINAL_SURVEY_STATION_NAME, LEGACY_FINAL_SURVEY_STATION_NAME]
+    .map(normalizeStationNameForComparison)
+    .includes(normalizedName);
 }
 
 export function sortStationsWithFinalSurveyLast<T extends { name: string }>(stations: T[]): T[] {

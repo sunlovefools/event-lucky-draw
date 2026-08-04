@@ -2,11 +2,16 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { normalizeFullName, normalizeRegistrationNumber, normalizeTitle } from "@/lib/shared/normalize";
 import { requireAdminSession, type AdminSessionStore, SupabaseAdminAuthStore } from "@/lib/auth/admin-auth";
 import { isFinalSurveyStationName } from "@/lib/shared/station";
+import { DELETE_ALL_DELEGATES_CONFIRMATION } from "@/lib/shared/delegate-deletion";
 import * as XLSX from "xlsx";
 
 const MAX_PARTICIPANT_IMPORT_BYTES = 5 * 1024 * 1024;
 
+export { DELETE_ALL_DELEGATES_CONFIRMATION } from "@/lib/shared/delegate-deletion";
+
 export type DelegateDrawStatus = "auto" | "eligible" | "excluded" | string;
+
+const WRITABLE_DRAW_STATUSES = new Set(["auto", "eligible", "excluded"]);
 
 export type AdminParticipant = {
   id: string;
@@ -39,6 +44,7 @@ export type ParticipantsStore = AdminSessionStore & {
   updateDelegateName(delegateId: string, fullName: string): Promise<AdminParticipant>;
   updateDelegateDrawStatus(delegateId: string, drawStatus: DelegateDrawStatus): Promise<AdminParticipant>;
   setDelegateStationStamp(delegateId: string, stationId: string, stamped: boolean, changedAt: string): Promise<void>;
+  deleteAllDelegates(sessionId: string): Promise<number>;
 };
 
 function normalizeParticipantInput(input: {
@@ -228,6 +234,10 @@ export async function setDelegateDrawStatus({
     return { ok: false, error: "Delegate is required." };
   }
 
+  if (!WRITABLE_DRAW_STATUSES.has(drawStatus)) {
+    return { ok: false, error: "Draw status is invalid." };
+  }
+
   return { ok: true, participant: await store.updateDelegateDrawStatus(normalizedDelegateId, drawStatus) };
 }
 
@@ -260,6 +270,29 @@ export async function setDelegateStationStamp({
 
   await store.setDelegateStationStamp(normalizedDelegateId, normalizedStationId, stamped, changedAt);
   return { ok: true };
+}
+
+export async function deleteAllDelegates({
+  store,
+  sessionId,
+  confirmationPhrase,
+  now = () => new Date(),
+}: {
+  store: ParticipantsStore;
+  sessionId?: string | null;
+  confirmationPhrase: string;
+  now?: () => Date;
+}): Promise<{ ok: true; deleted: number } | { ok: false; error: string }> {
+  const session = await requireAdminSession({ store, sessionId, nowIso: now().toISOString() });
+  if (!session) {
+    return { ok: false, error: "Admin login required." };
+  }
+
+  if (confirmationPhrase.trim() !== DELETE_ALL_DELEGATES_CONFIRMATION) {
+    return { ok: false, error: "Type DELETE ALL DELEGATES to confirm." };
+  }
+
+  return { ok: true, deleted: await store.deleteAllDelegates(session.id) };
 }
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
@@ -474,5 +507,16 @@ export class SupabaseParticipantsStore implements ParticipantsStore {
       .update({ eligible_at: hasFinalSurvey && hasAllActiveStamps ? changedAt : null })
       .eq("id", delegateId);
     if (eligibilityError) throw new Error(eligibilityError.message);
+  }
+
+  async deleteAllDelegates(sessionId: string): Promise<number> {
+    const { data, error } = await this.supabase.rpc("admin_delete_all_delegates", {
+      p_session_id: sessionId,
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return Number(data ?? 0);
   }
 }

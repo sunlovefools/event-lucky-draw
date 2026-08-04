@@ -53,20 +53,25 @@ export function isBaseEligible(input: {
   surveySubmitted: boolean;
 }): boolean {
   const status = input.drawStatus ?? "auto";
-  if (status === "eligible") return true;
-  if (status === "excluded") return false;
+  if (status === "eligible" || status === "manual_include") return true;
+  if (status === "excluded" || status === "disqualified") return false;
 
   return input.totalActiveStations > 0 && input.stampsCollected >= input.totalActiveStations;
 }
 
-export function getLuckyDrawPool(participants: AdminParticipant[]): AdminParticipant[] {
-  return participants.filter((participant) =>
-    isBaseEligible({
-      drawStatus: participant.drawStatus,
-      stampsCollected: participant.stampsCollected,
-      totalActiveStations: participant.totalActiveStations,
-      surveySubmitted: participant.surveySubmitted,
-    }),
+export function getLuckyDrawPool<T extends AdminParticipant>(
+  participants: T[],
+  drawnDelegateIds: Iterable<string> = [],
+): T[] {
+  const drawnIds = new Set(drawnDelegateIds);
+  return participants.filter(
+    (participant) =>
+      isBaseEligible({
+        drawStatus: participant.drawStatus,
+        stampsCollected: participant.stampsCollected,
+        totalActiveStations: participant.totalActiveStations,
+        surveySubmitted: participant.surveySubmitted,
+      }) && !drawnIds.has(participant.id),
   );
 }
 
@@ -246,18 +251,9 @@ export class SupabaseDrawStore implements DrawStore {
       throw new Error(winnerError.message);
     }
 
-    const drawnIds = new Set((winners ?? []).map((winner: { delegate_id: string }) => winner.delegate_id));
-    return (delegates ?? [])
-      .filter(
-        (delegate: CandidateRpcRow) =>
-          isBaseEligible({
-            drawStatus: delegate.draw_status,
-            stampsCollected: Number(delegate.stamps_collected),
-            totalActiveStations: Number(delegate.total_active_stations),
-            surveySubmitted: Boolean(delegate.survey_submitted),
-          }) && !drawnIds.has(delegate.id),
-      )
-      .map(candidateFromRpcRow);
+    const drawnIds = (winners ?? []).map((winner: { delegate_id: string }) => winner.delegate_id);
+    const participants = (delegates ?? []).map((delegate: CandidateRpcRow) => candidateFromRpcRow(delegate));
+    return getLuckyDrawPool(participants, drawnIds);
   }
 
   async tryRecordLuckyDrawWinner(

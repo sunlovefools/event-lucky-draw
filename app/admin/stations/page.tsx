@@ -4,10 +4,13 @@ import Link from "next/link";
 
 import { ADMIN_SESSION_COOKIE } from "@/app/admin/session";
 import { getAdminDashboard, SupabaseDashboardStore } from "@/lib/admin/dashboard";
-import { createStationAction, editStationAction } from "@/app/admin/actions";
 import { AdminCard, EmptyState } from "@/app/admin/ui";
-import { IconPlus, IconStore, IconList, IconSearch } from "@/app/admin/icons";
+import { IconStore, IconList, IconSearch } from "@/app/admin/icons";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
+import { CreateStationModal } from "@/app/admin/stations/create-station-modal";
+import { StationCard } from "@/app/admin/stations/station-card";
+import { FinalSurveyStationLink } from "@/app/admin/stations/final-survey-station-link";
+import { isFinalSurveyStationName } from "@/lib/shared/station";
 
 export const dynamic = "force-dynamic";
 
@@ -40,10 +43,12 @@ export default async function StationsPage({
     ? (requestedFilter as StationFilter)
     : "all";
 
-  const totalStations = dashboard.stations.length;
-  const activeStations = dashboard.stations.filter((station) => station.active).length;
+  const finalSurveyStation = dashboard.stations.find((station) => isFinalSurveyStationName(station.name));
+  const exhibitionStations = dashboard.stations.filter((station) => !isFinalSurveyStationName(station.name));
+  const totalStations = exhibitionStations.length;
+  const activeStations = exhibitionStations.filter((station) => station.active).length;
 
-  const filteredStations = dashboard.stations.filter((station) => {
+  const filteredStations = exhibitionStations.filter((station) => {
     const matchesSearch = !q || station.name.toLowerCase().includes(q);
 
     const matchesFilter =
@@ -63,7 +68,12 @@ export default async function StationsPage({
 
   return (
     <div className="module-grid">
-      <AdminCard icon={IconStore} eyebrow="Manage" title="Exhibition stations">
+      <AdminCard
+        icon={IconStore}
+        eyebrow="Manage"
+        title="Exhibition stations"
+        action={<CreateStationModal redirectTo={redirectTo} />}
+      >
         <div className="stations-heading">
           <div>
             <p className="stations-intro">
@@ -72,6 +82,8 @@ export default async function StationsPage({
           </div>
           <span className="badge badge-neutral">{totalStations} total</span>
         </div>
+
+        <FinalSurveyStationLink stationName={finalSurveyStation?.name} />
 
         <section className="stations-stats" aria-label="Station summary">
           <article className="station-stat">
@@ -93,59 +105,6 @@ export default async function StationsPage({
           </article>
 
         </section>
-
-        <details className="station-create" open={totalStations === 0}>
-          <summary>
-            <span className="station-create__summary-icon" aria-hidden="true">
-              <IconPlus size={18} />
-            </span>
-            <span>
-              <strong>Add a new exhibition station</strong>
-              <small>Create another booth or activity point</small>
-            </span>
-            <span className="station-create__summary-action">Add station</span>
-          </summary>
-
-          <form action={createStationAction} className="station-create__form">
-            <input type="hidden" name="redirectTo" value={redirectTo} />
-
-            <div className="field station-create__name">
-              <label className="field-label" htmlFor="station-name">
-                Exhibition station name
-              </label>
-              <input
-                id="station-name"
-                name="name"
-                className="input"
-                placeholder="e.g. Main stage, Booth A or Registration"
-                autoComplete="off"
-                required
-              />
-              <p className="hint">
-                Use a name that participants and station staff can recognise immediately.
-              </p>
-            </div>
-
-            <label className="station-toggle">
-              <input type="checkbox" name="active" value="true" defaultChecked />
-              <span className="station-toggle__track" aria-hidden="true">
-                <span />
-              </span>
-              <span>
-                <strong>Active immediately</strong>
-                <small>Participants can collect a stamp at this station.</small>
-              </span>
-            </label>
-
-            <PendingSubmitButton
-              className="btn btn-primary station-create__button"
-              pendingLabel="Creating…"
-            >
-              <IconPlus size={17} />
-              Create exhibition station
-            </PendingSubmitButton>
-          </form>
-        </details>
 
         <section className="stations-list-section">
           <div className="stations-list-heading">
@@ -207,16 +166,15 @@ export default async function StationsPage({
               title={totalStations === 0 ? "No stations yet" : "No matching stations"}
               hint={
                 totalStations === 0
-                  ? "Use the Add a new exhibition station panel above to create your first booth."
+                  ? "Use Add Station to create your first booth."
                   : "Try another search term or change the filter."
               }
             />
           ) : (
             <div className="station-cards">
               {filteredStations.map((station, index) => {
-                const stationHref = `/station/${encodeURIComponent(station.name)}`;
-
-                return (
+                return <StationCard key={station.id} station={station} index={index} redirectTo={redirectTo} />;
+                  /*
                   <article key={station.id} className="station-card">
                     <div className="station-card__number" aria-hidden="true">
                       {String(index + 1).padStart(2, "0")}
@@ -296,8 +254,7 @@ export default async function StationsPage({
                         </PendingSubmitButton>
                       </form>
                     </div>
-                  </article>
-                );
+                  </article>*/
               })}
             </div>
           )}

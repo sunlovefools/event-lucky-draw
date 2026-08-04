@@ -1,16 +1,78 @@
 import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import * as XLSX from "xlsx";
 
+import { ParticipantActions } from "@/app/admin/participants/participant-controls";
 import {
   createParticipantAccount,
+  deleteAllDelegates,
   importParticipantAccounts,
   updateDelegateName,
   setDelegateDrawStatus,
   setDelegateStationStamp,
 } from "@/lib/admin/participants";
+import { DELETE_ALL_DELEGATES_CONFIRMATION } from "@/lib/shared/delegate-deletion";
 import { createStore } from "./test-stores";
 
 describe("participant management", () => {
+  it("submits the canonical eligible status from the participant controls", () => {
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+      configurable: true,
+      value() {
+        this.setAttribute("open", "");
+      },
+    });
+
+    render(
+      <ParticipantActions
+        participant={{
+          id: "delegate-1",
+          fullName: "Ada Lovelace",
+          registrationNumber: "REG-001",
+          stampsCollected: 0,
+          totalActiveStations: 3,
+          surveySubmitted: false,
+          drawStatus: "auto",
+        }}
+        stations={[]}
+        redirectTo="/admin/participants"
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Show actions for Ada Lovelace"));
+    fireEvent.click(screen.getByRole("button", { name: "Include in draw" }));
+
+    expect(document.querySelector<HTMLInputElement>('input[name="drawStatus"]')).toHaveValue("eligible");
+  });
+
+  it("permanently deletes every delegate only after exact confirmation from an authenticated admin", async () => {
+    const sessionIds: string[] = [];
+    const store = createStore({
+      async findValidSession() {
+        return { id: "session-1", adminId: "admin-1", username: "organizer" };
+      },
+      async deleteAllDelegates(sessionId) {
+        sessionIds.push(sessionId);
+        return 3;
+      },
+    });
+
+    const rejected = await deleteAllDelegates({
+      store,
+      sessionId: "session-1",
+      confirmationPhrase: "delete all delegates",
+    });
+    const deleted = await deleteAllDelegates({
+      store,
+      sessionId: "session-1",
+      confirmationPhrase: DELETE_ALL_DELEGATES_CONFIRMATION,
+    });
+
+    expect(rejected).toEqual({ ok: false, error: "Type DELETE ALL DELEGATES to confirm." });
+    expect(deleted).toEqual({ ok: true, deleted: 3 });
+    expect(sessionIds).toEqual(["session-1"]);
+  });
+
   it("lets an authenticated admin edit delegate names", async () => {
     const updates: Array<{ delegateId: string; fullName: string }> = [];
     const result = await updateDelegateName({
@@ -74,15 +136,36 @@ describe("participant management", () => {
       },
     });
 
-    const included = await setDelegateDrawStatus({ store, sessionId: "session-1", delegateId: "delegate-1", drawStatus: "manual_include" });
-    const removed = await setDelegateDrawStatus({ store, sessionId: "session-1", delegateId: "delegate-1", drawStatus: "disqualified" });
+    const included = await setDelegateDrawStatus({ store, sessionId: "session-1", delegateId: "delegate-1", drawStatus: "eligible" });
+    const removed = await setDelegateDrawStatus({ store, sessionId: "session-1", delegateId: "delegate-1", drawStatus: "excluded" });
 
-    expect(included).toMatchObject({ ok: true, participant: { id: "delegate-1", drawStatus: "manual_include" } });
-    expect(removed).toMatchObject({ ok: true, participant: { id: "delegate-1", drawStatus: "disqualified" } });
+    expect(included).toMatchObject({ ok: true, participant: { id: "delegate-1", drawStatus: "eligible" } });
+    expect(removed).toMatchObject({ ok: true, participant: { id: "delegate-1", drawStatus: "excluded" } });
     expect(statuses).toEqual([
-      { delegateId: "delegate-1", drawStatus: "manual_include" },
-      { delegateId: "delegate-1", drawStatus: "disqualified" },
+      { delegateId: "delegate-1", drawStatus: "eligible" },
+      { delegateId: "delegate-1", drawStatus: "excluded" },
     ]);
+  });
+
+  it("rejects legacy or unknown draw statuses on write", async () => {
+    let updated = false;
+    const result = await setDelegateDrawStatus({
+      store: createStore({
+        async findValidSession() {
+          return { id: "session-1", adminId: "admin-1", username: "organizer" };
+        },
+        async updateDelegateDrawStatus() {
+          updated = true;
+          throw new Error("should not update");
+        },
+      }),
+      sessionId: "session-1",
+      delegateId: "delegate-1",
+      drawStatus: "manual_include",
+    });
+
+    expect(result).toEqual({ ok: false, error: "Draw status is invalid." });
+    expect(updated).toBe(false);
   });
 
   it("lets an authenticated admin stamp or unstamp a participant station", async () => {

@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { AdminDrawScreen } from "@/app/admin/draw/admin-draw-display";
 import { getPublicDrawState, type PublicDrawStore } from "@/lib/public-draw";
@@ -85,6 +85,29 @@ describe("admin lucky draw display", () => {
 
     expect(screen.getByText("✦ The lucky winner is ✦")).toBeInTheDocument();
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
-    expect(screen.getAllByText(/REG-001/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Congratulations !!!")).toBeInTheDocument();
+    expect(screen.queryByText(/Registration #REG-001/)).not.toBeInTheDocument();
+  });
+
+  it("keeps rotating names during a draw when only three candidates are eligible", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValue(0.5);
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+
+    render(
+      <AdminDrawScreen
+        initialState={{ status: "waiting", winner: null }}
+        candidateNames={["Ada Lovelace", "Grace Hopper", "Katherine Johnson"]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Draw winner" }));
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(75);
+    });
+
+    expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
   });
 });

@@ -520,7 +520,7 @@ h3 {
   background: var(--color-success-soft);
   color: var(--color-accent-strong);
 }
-.stamp-locked {
+  .stamp-locked {
   border-style: solid;
   border-color: var(--color-border-strong);
   background: color-mix(in srgb, var(--color-surface-2) 78%, #000 4%);
@@ -963,6 +963,20 @@ dl.health dd {
   0%, 10%, 100% {
     transform: scale(0.72) translateY(18px) rotate(-1deg);
     opacity: 0.72;
+  }
+  .stamp-final {
+    grid-column: 1 / -1;
+    min-height: 132px;
+  }
+  .stamp-lock-label {
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-pill);
+    color: var(--color-foreground);
+    background: var(--color-surface);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
   24% {
     transform: scale(0.93) translateY(2px) rotate(1deg);

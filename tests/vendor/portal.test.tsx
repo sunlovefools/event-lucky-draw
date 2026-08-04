@@ -144,7 +144,7 @@ describe("vendor stamp scan", () => {
         async listActiveStations() {
           return [
             { id: "station-1", name: "AI Booth", active: true },
-            { id: "final-survey", name: "Final Survey", active: true },
+            { id: "final-survey", name: "Final Survey Station", active: true },
           ];
         },
         async listDelegateStampStationIds() {
@@ -155,14 +155,14 @@ describe("vendor stamp scan", () => {
           throw new Error("should not stamp a locked final station");
         },
       }),
-      session: { ...vendorSession, vendor: { ...vendorSession.vendor, station: { id: "final-survey", name: "Final Survey", active: true } } },
+      session: { ...vendorSession, vendor: { ...vendorSession.vendor, station: { id: "final-survey", name: "Final Survey Station", active: true } } },
       badgePayload: "REG-001",
     });
 
     expect(result).toEqual({
       ok: false,
       reason: "locked",
-      error: "Final Survey is locked. Complete all other stations first, then scan this station.",
+      error: "Final Survey Station is locked. Collect every other station stamp to unlock it.",
     });
     expect(stamped).toBe(false);
   });
@@ -178,7 +178,7 @@ describe("vendor stamp scan", () => {
         async listActiveStations() {
           return [
             { id: "station-1", name: "AI Booth", active: true },
-            { id: "final-survey", name: "Final Survey", active: true },
+            { id: "final-survey", name: "Final Survey Station", active: true },
           ];
         },
         async listDelegateStampStationIds() {
@@ -191,7 +191,7 @@ describe("vendor stamp scan", () => {
           markedEligible.push({ delegateId, eligibleAt });
         },
       }),
-      session: { ...vendorSession, vendor: { ...vendorSession.vendor, station: { id: "final-survey", name: "Final Survey", active: true } } },
+      session: { ...vendorSession, vendor: { ...vendorSession.vendor, station: { id: "final-survey", name: "Final Survey Station", active: true } } },
       badgePayload: "REG-001",
       now: () => new Date("2025-01-01T00:00:00.000Z"),
     });
@@ -204,10 +204,10 @@ describe("vendor stamp scan", () => {
         id: "stamp-final",
         delegateFullName: "Ada Lovelace",
         stationId: "final-survey",
-        stationName: "Final Survey",
+        stationName: "Final Survey Station",
         collectedAt: "2025-01-01T00:00:00.000Z",
       },
-      message: "Ada Lovelace completed the Final Survey station and is entered into the lucky draw.",
+      message: "Ada Lovelace completed the Final Survey Station and is entered into the lucky draw.",
     });
     expect(markedEligible).toEqual([{ delegateId: "delegate-1", eligibleAt: "2025-01-01T00:00:00.000Z" }]);
   });

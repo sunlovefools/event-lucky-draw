@@ -1,7 +1,8 @@
 import Link from "next/link";
 
-import { setParticipationAction, drawLuckyWinnerAction, resetDrawRoundAction } from "@/app/admin/actions";
+import { setParticipationAction, resetDrawRoundAction } from "@/app/admin/actions";
 import type { AdminDashboardResult } from "@/lib/admin/dashboard";
+import { getLuckyDrawPool } from "@/lib/admin/draw";
 import type { HealthStatus } from "@/lib/health";
 import { AdminCard, formatTime } from "@/app/admin/ui";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
@@ -32,8 +33,6 @@ export function AdminOverview({
   health?: HealthStatus;
 }) {
   const { participation, stations, participants, stationSummaries, scanAuditLogs, drawRounds } = dashboard;
-
-  const eligibleCount = participants.filter((p) => ["eligible", "manual_include"].includes(p.drawStatus)).length;
   const activeStations = stations.filter((s) => s.active).length;
   const nextOpenValue = participation.open ? "false" : "true";
   const buttonLabel = participation.open ? "Close participation" : "Open participation";
@@ -41,14 +40,15 @@ export function AdminOverview({
   const allWinners = drawRounds
     .flatMap((r) => r.winners.map((w) => ({ ...w, roundNumber: r.roundNumber })))
     .sort((a, b) => (a.wonAt < b.wonAt ? 1 : -1));
+  const eligibleCount = getLuckyDrawPool(participants, allWinners.map((winner) => winner.delegateId)).length;
   const recentWinners = allWinners.slice(0, 8);
 
   const statTiles = [
-    { icon: IconUsers, label: "Participants", value: participants.length, accent: false },
-    { icon: IconCheckCircle, label: "Eligible", value: eligibleCount, accent: true },
-    { icon: IconTrophy, label: "Winners drawn", value: allWinners.length, accent: false },
-    { icon: IconStore, label: "Active stations", value: `${activeStations}/${stations.length}`, accent: false },
-    { icon: IconScan, label: "Scan attempts", value: scanAuditLogs.length, accent: false },
+    { icon: IconUsers, label: "Participants", value: participants.length, accent: "blue" },
+    { icon: IconCheckCircle, label: "Eligible", value: eligibleCount, accent: "green" },
+    { icon: IconTrophy, label: "Winners drawn", value: allWinners.length, accent: "orange" },
+    { icon: IconStore, label: "Active stations", value: `${activeStations}/${stations.length}`, accent: "purple" },
+    { icon: IconScan, label: "Scan attempts", value: scanAuditLogs.length, accent: "cyan" },
   ];
 
   return (
@@ -59,7 +59,7 @@ export function AdminOverview({
         </p>
       ) : null}
 
-      {/* Participation control */}
+      {/* Operations */}
       <AdminCard
         icon={IconPower}
         eyebrow="Live control"
@@ -84,50 +84,34 @@ export function AdminOverview({
             </PendingSubmitButton>
           </form>
         </div>
-      </AdminCard>
-
-      {/* System status */}
-      <AdminCard icon={IconActivity} eyebrow="Health" title="System status">
-        <div className="health-grid">
-          <div className="health-item">
-            <span className="health-item__icon" style={{ background: "var(--color-info-soft)", color: "var(--color-primary)" }}>
-              <IconWifi size={20} />
-            </span>
-            <span>
-              <span className="health-item__label">App</span>
-              <br />
-              <span className="health-item__value">{health?.app}</span>
-            </span>
+        <section className="dashboard-health-section" aria-labelledby="system-status-title">
+          <div className="dashboard-health-section__heading">
+            <span className="dashboard-health-section__icon" aria-hidden="true"><IconActivity size={17} /></span>
+            <div><h3 id="system-status-title">System status</h3><p>Live health indicators</p></div>
           </div>
-          <div className="health-item">
-            <span className="health-item__icon" style={{ background: "var(--color-success-soft)", color: "var(--color-accent-strong)" }}>
-              <IconDatabase size={20} />
-            </span>
-            <span>
-              <span className="health-item__label">Database</span>
-              <br />
-              <span className="health-item__value">{health?.database}</span>
-            </span>
+          <div className="health-grid">
+            <div className="health-item">
+              <span className="health-item__icon" style={{ background: "var(--color-info-soft)", color: "var(--color-primary)" }}><IconWifi size={20} /></span>
+              <span><span className="health-item__label">App</span><br /><span className="health-item__value">{health?.app}</span></span>
+            </div>
+            <div className="health-item">
+              <span className="health-item__icon" style={{ background: "var(--color-success-soft)", color: "var(--color-accent-strong)" }}><IconDatabase size={20} /></span>
+              <span><span className="health-item__label">Database</span><br /><span className="health-item__value">{health?.database}</span></span>
+            </div>
+            <div className="health-item">
+              <span className="health-item__icon" style={{ background: "var(--color-warning-soft)", color: "#92400e" }}><IconClock size={20} /></span>
+              <span><span className="health-item__label">Last checked</span><br /><span className="health-item__value">{health?.checkedAt}</span></span>
+            </div>
           </div>
-          <div className="health-item">
-            <span className="health-item__icon" style={{ background: "var(--color-warning-soft)", color: "#92400e" }}>
-              <IconClock size={20} />
-            </span>
-            <span>
-              <span className="health-item__label">Last checked</span>
-              <br />
-              <span className="health-item__value">{health?.checkedAt}</span>
-            </span>
-          </div>
-        </div>
-        {health?.error ? <p className="alert alert-danger" style={{ marginTop: "1rem" }}>{health.error}</p> : null}
+          {health?.error ? <p className="alert alert-danger" style={{ marginTop: "1rem" }}>{health.error}</p> : null}
+        </section>
       </AdminCard>
 
       {/* At a glance */}
       <div className="stat-tiles">
         {statTiles.map((tile) => (
           <div className="stat-tile" key={tile.label}>
-            <span className={`stat-tile__icon${tile.accent ? " stat-tile__icon--accent" : ""}`} aria-hidden="true">
+            <span className={`stat-tile__icon stat-tile__icon--${tile.accent}`} aria-hidden="true">
               <tile.icon size={22} />
             </span>
             <span>
@@ -146,13 +130,14 @@ export function AdminOverview({
         title="Lucky draw"
         iconAccent
         action={
-          <Link href="/display" className="icon-btn" target="_blank" rel="noreferrer">
+          <Link href="/display" className="btn btn-primary" target="_blank" rel="noreferrer">
             <IconArrowRight size={18} />
-            Public display
+            Main drawing page
           </Link>
         }
       >
         <div className="participation-banner">
+          <p className="participation-banner__meta">Opens the drawing interface in a new browser tab for conducting the lucky draw.</p>
           <p className="participation-banner__meta">
             {allWinners.length} winner{allWinners.length === 1 ? "" : "s"} drawn · winners stay excluded until reset
           </p>
@@ -161,7 +146,7 @@ export function AdminOverview({
             Ready
           </span>
         </div>
-        <div className="row" style={{ gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
+        <div className="row" style={{ gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>{/*
           <form action={drawLuckyWinnerAction}>
             <input type="hidden" name="redirectTo" value="/admin" />
             <PendingSubmitButton className="btn btn-accent" pendingLabel="Drawing…">
@@ -176,7 +161,7 @@ export function AdminOverview({
               Reset winners
             </PendingSubmitButton>
           </form>
-        </div>
+        */}</div>
       </AdminCard>
 
       {/* Recent winners */}
@@ -184,12 +169,13 @@ export function AdminOverview({
         icon={IconCrown}
         eyebrow="Latest"
         title="Recent winners"
-        action={
-          <Link href="/admin/winners" className="icon-btn">
-            View all
-            <IconArrowRight size={18} />
-          </Link>
-        }
+        action={<div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+          <form action={resetDrawRoundAction}>
+            <input type="hidden" name="redirectTo" value="/admin" />
+            <PendingSubmitButton className="btn btn-danger-outline btn-sm" pendingLabel="Resetting…"><IconRefresh size={16} />Reset winners</PendingSubmitButton>
+          </form>
+          <Link href="/admin/winners" className="icon-btn">View all<IconArrowRight size={18} /></Link>
+        </div>}
       >
         {recentWinners.length === 0 ? (
           <p className="empty">No winners drawn yet.</p>

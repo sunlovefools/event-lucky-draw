@@ -17,6 +17,8 @@
     "db:reset": "supabase db reset",
     "db:clear-non-admin:local": "supabase db query --local --file scripts/clear-non-admin-data.sql",
     "db:clear-non-admin:linked": "supabase db query --linked --file scripts/clear-non-admin-data.sql",
+    "db:clear-all-except-admin:local": "npm run db:clear-non-admin:local",
+    "db:clear-all-except-admin:linked": "npm run db:clear-non-admin:linked",
     "seed:admin": "node scripts/create-admin-seed.mjs"
   },
   "dependencies": {

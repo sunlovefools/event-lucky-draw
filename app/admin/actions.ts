@@ -15,6 +15,7 @@ import { createVendorAccount, editVendorAccount, SupabaseVendorsStore } from "@/
 import { SupabaseVendorAuthStore } from "@/lib/auth/vendor-auth";
 import {
   createParticipantAccount,
+  deleteAllDelegates,
   importParticipantAccounts,
   updateDelegateName,
   setDelegateDrawStatus,
@@ -214,6 +215,26 @@ export async function importParticipantsAction(formData: FormData) {
   }));
 }
 
+export async function deleteAllDelegatesAction(formData: FormData) {
+  const target = resolveRedirect(formData, "/admin/participants");
+  const store = new SupabaseParticipantsStore();
+  const result = await withAdminSession(store, (sessionId) =>
+    deleteAllDelegates({
+      store,
+      sessionId,
+      confirmationPhrase: String(formData.get("confirmationPhrase") ?? ""),
+    }),
+  );
+
+  if (!result.ok) {
+    redirect(withQuery(target, {
+      error: result.error === "Admin login required." ? "login-required" : "delegates-delete-confirmation-invalid",
+    }));
+  }
+
+  redirect(withQuery(target, { delegatesDeleted: result.deleted }));
+}
+
 export async function drawLuckyWinnerAction(formData: FormData) {
   const target = resolveRedirect(formData);
   const store = new SupabaseDrawStore();
@@ -259,7 +280,7 @@ export async function setDelegateDrawStatusAction(formData: FormData) {
       store,
       sessionId,
       delegateId: String(formData.get("delegateId") ?? ""),
-      drawStatus: String(formData.get("drawStatus") ?? "not_eligible"),
+      drawStatus: String(formData.get("drawStatus") ?? ""),
     }),
   );
 

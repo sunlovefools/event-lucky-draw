@@ -16,6 +16,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   "vendor-invalid": "That station login could not be saved. Check the details and try again.",
   "participant-invalid": "That participant could not be saved. Check the ID and name, then try again.",
   "participants-import-invalid": "Participants could not be imported. Check the spreadsheet and try again.",
+  "delegates-delete-confirmation-invalid": "Delegates were not deleted. Type the confirmation phrase exactly and try again.",
   "draw-invalid": "The draw couldn't be run. Try again in a moment.",
 
   // Station login

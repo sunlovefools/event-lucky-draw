@@ -119,7 +119,7 @@ export function AdminDrawScreen({
       }
     }
     const interval = setInterval(poll, pollMs);
-    return () => { cancelled = true; clearInterval(interval); stopSlot(); };
+    return () => { cancelled = true; clearInterval(interval); };
   }, [drawPending, phase, pollMs, minRevealMs, names]);
 
   useEffect(() => () => stopSlot(), []);
@@ -143,7 +143,7 @@ export function AdminDrawScreen({
   }
 
   const winner = drawState.winner;
-  const status = drawError ?? (phase === "animating" ? "Scanning eligible participants" : phase === "revealed" ? `Registration #${winner?.registrationNumber}` : "Ready for the draw");
+  const status = drawError ?? (phase === "animating" ? "Scanning eligible participants" : phase === "revealed" ? "Congratulations !!!" : "Ready for the draw");
 
   return (
     <main className={`lucky-draw-screen lucky-draw-screen--${phase}`} id="main" aria-live="polite">
@@ -161,7 +161,7 @@ export function AdminDrawScreen({
         </header>
 
         <div className="lucky-draw-stage">
-          <p className="lucky-draw-winner-label">{phase === "revealed" ? "✦ The lucky winner is ✦" : "✦ And the winner is …"}</p>
+          <p className="lucky-draw-winner-label">{phase === "revealed" ? "✦ The lucky winner is ✦" : "✦ And the winner is … ✦"}</p>
           <div className="lucky-draw-slot-machine">
             <div className="lucky-draw-slot-window">
               <div className={`lucky-draw-slot-track ${phase === "animating" ? "is-spinning" : ""}`}>
@@ -175,9 +175,9 @@ export function AdminDrawScreen({
           </div>
         </div>
 
-        <p className={`lucky-draw-status ${drawError ? "is-error" : ""}`}>{status}</p>
+        {status ? <p className={`lucky-draw-status ${drawError ? "is-error" : ""}`}>{status}</p> : null}
         <button type="button" className={`lucky-draw-button ${drawPending ? "is-spinning" : ""}`} onClick={handleDraw} disabled={drawPending || phase === "animating"} aria-label="Draw winner">
-          <span aria-hidden="true">✦</span>{drawPending ? "DRAWING…" : "START DRAW"}
+          <span aria-hidden="true">✦</span>{drawPending ? "DRAWING…" : "START DRAW"}✦
         </button>
       </section>
     </main>

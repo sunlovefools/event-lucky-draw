@@ -4,13 +4,7 @@ import Link from "next/link";
 
 import { ADMIN_SESSION_COOKIE } from "@/app/admin/session";
 import { getAdminDashboard, SupabaseDashboardStore } from "@/lib/admin/dashboard";
-import {
-  createParticipantAction,
-  importParticipantsAction,
-  updateDelegateNameAction,
-  setDelegateDrawStatusAction,
-  setDelegateStationStampAction,
-} from "@/app/admin/actions";
+import { getLuckyDrawPool } from "@/lib/admin/draw";
 import type { AdminParticipant, DelegateDrawStatus } from "@/lib/admin/participants";
 import { sortStationsWithFinalSurveyLast, type Station } from "@/lib/shared/station";
 import { AdminCard, EmptyState, Pagination } from "@/app/admin/ui";
@@ -22,19 +16,19 @@ import {
   IconFilter,
   IconCheck,
   IconX,
-  IconPencil,
   IconList,
-  IconChevronDown,
-  IconPlus,
-  IconUpload,
   IconStamp,
+  IconTrophy,
 } from "@/app/admin/icons";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
+import { ParticipantActions, ParticipantManagementActions } from "@/app/admin/participants/participant-controls";
 
 const PAGE_SIZE = 20;
 
 const DRAW_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  auto: { label: "Automatic", cls: "badge-neutral" },
   eligible: { label: "Eligible", cls: "badge-success" },
+  excluded: { label: "Disqualified", cls: "badge-danger" },
   manual_include: { label: "Manual include", cls: "badge-info" },
   winner: { label: "Winner", cls: "badge-accent" },
   disqualified: { label: "Disqualified", cls: "badge-danger" },
@@ -43,7 +37,9 @@ const DRAW_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
+  { value: "auto", label: "Automatic" },
   { value: "eligible", label: "Eligible" },
+  { value: "excluded", label: "Disqualified" },
   { value: "manual_include", label: "Manual include" },
   { value: "winner", label: "Winner" },
   { value: "disqualified", label: "Disqualified" },
@@ -60,6 +56,8 @@ const SORT_OPTIONS = [
 const STATUS_ORDER: DelegateDrawStatus[] = [
   "winner",
   "eligible",
+  "excluded",
+  "auto",
   "manual_include",
   "disqualified",
   "not_eligible",
@@ -97,6 +95,7 @@ export default async function ParticipantsPage({
     importSkipped?: string;
     participantSaved?: string;
     stampUpdated?: string;
+    delegatesDeleted?: string;
   }>;
 }) {
   const cookieStore = await cookies();
@@ -149,9 +148,10 @@ export default async function ParticipantsPage({
   const safePage = Math.min(page, totalPages);
   const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const eligibleCount = allParticipants.filter((p) =>
-    ["eligible", "manual_include"].includes(p.drawStatus),
-  ).length;
+  const drawnDelegateIds = dashboard.drawRounds.flatMap((round) =>
+    round.winners.map((winner) => winner.delegateId),
+  );
+  const eligibleCount = getLuckyDrawPool(allParticipants, drawnDelegateIds).length;
   const completedCount = allParticipants.filter(
     (p) => p.totalActiveStations > 0 && p.stampsCollected >= p.totalActiveStations,
   ).length;
@@ -185,6 +185,8 @@ export default async function ParticipantsPage({
         ? { kind: "success" as const, text: "Participant account saved." }
         : params?.stampUpdated
           ? { kind: "success" as const, text: "Participant station stamp updated." }
+          : params?.delegatesDeleted !== undefined
+            ? { kind: "success" as const, text: `${Number(params.delegatesDeleted) || 0} delegate records permanently deleted.` }
         : null;
 
   return (
@@ -202,86 +204,33 @@ export default async function ParticipantsPage({
         ) : null}
 
         <div className="participant-summary" aria-label="Participant summary">
-          <div className="summary-card">
+          <div className="summary-card summary-card--blue">
+            <span className="summary-card__icon" aria-hidden="true"><IconUsers size={19} /></span>
             <span className="summary-label">Total participants</span>
             <strong>{allParticipants.length}</strong>
             <span className="summary-hint">Registered delegates</span>
           </div>
-          <div className="summary-card">
+          <div className="summary-card summary-card--green">
+            <span className="summary-card__icon" aria-hidden="true"><IconCheck size={19} /></span>
             <span className="summary-label">Draw eligible</span>
             <strong>{eligibleCount}</strong>
             <span className="summary-hint">Eligible or included</span>
           </div>
-          <div className="summary-card">
+          <div className="summary-card summary-card--orange">
+            <span className="summary-card__icon" aria-hidden="true"><IconStamp size={19} /></span>
             <span className="summary-label">All stamps</span>
             <strong>{completedCount}</strong>
             <span className="summary-hint">Completed station quest</span>
           </div>
-          <div className="summary-card">
+          <div className="summary-card summary-card--purple">
+            <span className="summary-card__icon" aria-hidden="true"><IconTrophy size={19} /></span>
             <span className="summary-label">Survey completed</span>
             <strong>{surveyCount}</strong>
             <span className="summary-hint">Feedback submitted</span>
           </div>
         </div>
 
-        <div className="participant-management">
-          <details className="participant-management__panel">
-            <summary>
-              <span className="participant-management__icon" aria-hidden="true">
-                <IconUpload size={18} />
-              </span>
-              <span>
-                <strong>Import Excel</strong>
-                <small>Use Delegate ID, Title, and Name from the first worksheet.</small>
-              </span>
-              <span className="participant-management__summary-action">Upload</span>
-            </summary>
-            <form action={importParticipantsAction} className="participant-management__form">
-              <input type="hidden" name="redirectTo" value={redirectTo} />
-              <div className="field">
-                <label className="field-label" htmlFor="participantFile">Excel file</label>
-                <input id="participantFile" name="participantFile" className="input" type="file" accept=".xls,.xlsx" required />
-                <p className="hint">Existing Delegate IDs are updated in place; accounts are never deleted. Maximum file size: 5 MB.</p>
-              </div>
-              <PendingSubmitButton className="btn btn-primary" pendingLabel="Importing...">
-                <IconUpload size={17} />
-                Import participants
-              </PendingSubmitButton>
-            </form>
-          </details>
-
-          <details className="participant-management__panel">
-            <summary>
-              <span className="participant-management__icon" aria-hidden="true">
-                <IconPlus size={18} />
-              </span>
-              <span>
-                <strong>Add participant</strong>
-                <small>Create or update one participant account manually.</small>
-              </span>
-              <span className="participant-management__summary-action">Add</span>
-            </summary>
-            <form action={createParticipantAction} className="participant-management__form participant-management__form--grid">
-              <input type="hidden" name="redirectTo" value={redirectTo} />
-              <div className="field">
-                <label className="field-label" htmlFor="participant-registration-number">Delegate ID</label>
-                <input id="participant-registration-number" name="registrationNumber" className="input" placeholder="e.g. REG-1024" required />
-              </div>
-              <div className="field">
-                <label className="field-label" htmlFor="participant-title">Title</label>
-                <input id="participant-title" name="title" className="input" placeholder="e.g. Dr" />
-              </div>
-              <div className="field participant-management__name">
-                <label className="field-label" htmlFor="participant-full-name">Name</label>
-                <input id="participant-full-name" name="fullName" className="input" placeholder="Jane Doe" required />
-              </div>
-              <PendingSubmitButton className="btn btn-primary participant-management__save" pendingLabel="Saving...">
-                <IconPlus size={17} />
-                Save participant
-              </PendingSubmitButton>
-            </form>
-          </details>
-        </div>
+        <ParticipantManagementActions delegateCount={allParticipants.length} redirectTo={redirectTo} />
 
         <form method="get" action="/admin/participants" className="participant-toolbar">
           <div className="participant-search">
@@ -449,6 +398,7 @@ function ParticipantRow({
   );
 }
 
+/* Legacy disclosure implementation retained temporarily for reference.
 function ParticipantActions({
   participant,
   stations,
@@ -580,4 +530,5 @@ function ParticipantActions({
     </div>
   );
 }
+*/
 

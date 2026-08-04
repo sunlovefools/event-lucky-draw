@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { AdminDashboard } from "@/app/admin/admin-dashboard";
+import { FinalSurveyStationLink } from "@/app/admin/stations/final-survey-station-link";
 import { createStation, editStation } from "@/lib/admin/stations";
 import { createStore } from "./test-stores";
 
@@ -61,6 +62,45 @@ describe("station management", () => {
 
     expect(result).toEqual({ ok: true, station: { id: "station-2", name: "Second Booth", active: true } });
     expect(created).toEqual({ name: "Second Booth", active: true });
+  });
+
+  it("reserves the system final station so admins cannot create or edit it", async () => {
+    let created = false;
+    let updated = false;
+    const store = createStore({
+      async findValidSession() {
+        return { id: "session-1", adminId: "admin-1", username: "organizer" };
+      },
+      async findStationById() {
+        return { id: "final-survey", name: "Final Survey Station", active: true };
+      },
+      async createStation(station) {
+        created = true;
+        return { id: "station-new", ...station };
+      },
+      async updateStation(stationId, station) {
+        updated = true;
+        return { id: stationId, ...station };
+      },
+    });
+
+    await expect(createStation({ store, sessionId: "session-1", name: " Final Survey Station ", active: true }))
+      .resolves.toEqual({ ok: false, error: "The Final Survey Station is created automatically." });
+    await expect(editStation({ store, sessionId: "session-1", stationId: "final-survey", name: "Renamed", active: false }))
+      .resolves.toEqual({ ok: false, error: "The Final Survey Station cannot be changed." });
+    expect(created).toBe(false);
+    expect(updated).toBe(false);
+  });
+
+  it("shows the protected Final Survey Station link", () => {
+    render(<FinalSurveyStationLink />);
+
+    expect(screen.getByRole("heading", { name: "Final Survey Station" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open final station/ })).toHaveAttribute(
+      "href",
+      "/station/Final%20Survey%20Station",
+    );
+    expect(screen.getByText("Protected")).toBeInTheDocument();
   });
 
   it("shows the vendors & stations summary to admins", () => {

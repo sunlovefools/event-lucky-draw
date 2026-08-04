@@ -63,6 +63,10 @@ export type DelegateHomeResult =
 
 const DELEGATE_SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
+function isTransientSupabaseFetchFailure(error: unknown) {
+  return error instanceof Error && /(?:^|:\s*)fetch failed$/i.test(error.message.trim());
+}
+
 export function extractRegistrationNumberFromBadgePayload(payload: string) {
   const trimmed = payload.trim();
   if (!trimmed) {
@@ -159,7 +163,21 @@ export async function getDelegateHome({
     return { identified: false };
   }
 
-  const snapshot = await store.readDelegateHome(sessionId, now().toISOString());
+  const nowIso = now().toISOString();
+  let snapshot: DelegateHomeSnapshot | null;
+
+  try {
+    snapshot = await store.readDelegateHome(sessionId, nowIso);
+  } catch (error) {
+    // Supabase reports network/TLS interruptions as "TypeError: fetch failed".
+    // This is a read-only request, so retrying once cannot duplicate event data.
+    if (!isTransientSupabaseFetchFailure(error)) {
+      throw error;
+    }
+
+    snapshot = await store.readDelegateHome(sessionId, nowIso);
+  }
+
   if (!snapshot) {
     return { identified: false };
   }
@@ -179,7 +197,7 @@ export async function getDelegateHome({
       completed,
       isFinalSurvey,
       locked,
-      lockReason: locked ? "Complete all other stations first, then scan the Final Survey station." : undefined,
+      lockReason: locked ? "Collect every stamp above to unlock this final station." : undefined,
     };
   });
   const completedCount = stations.filter((station) => station.completed).length;

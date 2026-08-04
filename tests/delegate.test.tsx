@@ -134,6 +134,27 @@ describe("delegate registration and resume", () => {
     });
   });
 
+  it("retries a transient Supabase fetch failure before restoring the delegate home", async () => {
+    let attempts = 0;
+
+    const result = await getDelegateHome({
+      store: createStore({
+        async readDelegateHome() {
+          attempts += 1;
+          if (attempts === 1) {
+            throw new Error("TypeError: fetch failed");
+          }
+
+          return createHomeSnapshot();
+        },
+      }),
+      sessionId: "delegate-session-1",
+    });
+
+    expect(attempts).toBe(2);
+    expect(result).toMatchObject({ identified: true, delegate: ada });
+  });
+
   it("same registration number resumes existing progress without requiring full name", async () => {
     const result = await registerOrResumeDelegate({
       store: createStore({
@@ -156,6 +177,39 @@ describe("delegate registration and resume", () => {
 });
 
 describe("delegate station progress", () => {
+  it("locks and lists the final station last before the first stamp", async () => {
+    const result = await getDelegateHome({
+      store: createStore({
+        async readDelegateHome() {
+          return createHomeSnapshot({
+            stations: [
+              { id: "final-survey", name: "Final Survey Station" },
+              { id: "station-1", name: "AI Booth" },
+            ],
+          });
+        },
+      }),
+      sessionId: "delegate-session-1",
+    });
+
+    expect(result).toMatchObject({
+      identified: true,
+      progress: {
+        stations: [
+          { id: "station-1", name: "AI Booth", completed: false, locked: false },
+          {
+            id: "final-survey",
+            name: "Final Survey Station",
+            completed: false,
+            locked: true,
+            lockReason: "Collect every stamp above to unlock this final station.",
+          },
+        ],
+        readyForFinalSurvey: false,
+      },
+    });
+  });
+
   it("shows active stations as completed or uncompleted with remaining count", async () => {
     const result = await getDelegateHome({
       store: createStore({
@@ -196,7 +250,7 @@ describe("delegate station progress", () => {
       store: createStore({
         async readDelegateHome() {
           return createHomeSnapshot({
-            stations: [{ id: "station-1", name: "AI Booth" }, { id: "station-2", name: "Cloud Booth" }, { id: "final-survey", name: "Final Survey" }],
+            stations: [{ id: "station-1", name: "AI Booth" }, { id: "station-2", name: "Cloud Booth" }, { id: "final-survey", name: "Final Survey Station" }],
             completedStationIds: ["station-1"],
           });
         },
@@ -207,7 +261,7 @@ describe("delegate station progress", () => {
       store: createStore({
         async readDelegateHome() {
           return createHomeSnapshot({
-            stations: [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey" }],
+            stations: [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey Station" }],
             completedStationIds: ["station-1"],
           });
         },
@@ -224,7 +278,7 @@ describe("delegate station progress", () => {
       store: createStore({
         async readDelegateHome() {
           return createHomeSnapshot({
-            stations: [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey" }],
+            stations: [{ id: "station-1", name: "AI Booth" }, { id: "final-survey", name: "Final Survey Station" }],
             completedStationIds: ["station-1", "disabled-station"],
           });
         },
@@ -237,7 +291,7 @@ describe("delegate station progress", () => {
       progress: {
         stations: [
           { id: "station-1", name: "AI Booth", completed: true, isFinalSurvey: false, locked: false },
-          { id: "final-survey", name: "Final Survey", completed: false, isFinalSurvey: true, locked: false },
+          { id: "final-survey", name: "Final Survey Station", completed: false, isFinalSurvey: true, locked: false },
         ],
         completedCount: 1,
         totalRequired: 2,
@@ -343,6 +397,37 @@ describe("delegate home UI", () => {
     expect(screen.getByRole("heading", { name: "Welcome Dr Ada Lovelace!" })).toBeInTheDocument();
   });
 
+  it("shows the locked Final Survey Station before any stamps are collected", async () => {
+    render(await Home({
+      delegateHomePromise: Promise.resolve({
+        identified: true,
+        delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
+        progress: {
+          stations: [
+            { id: "station-1", name: "AI Booth", completed: false, isFinalSurvey: false, locked: false },
+            {
+              id: "final-survey",
+              name: "Final Survey Station",
+              completed: false,
+              isFinalSurvey: true,
+              locked: true,
+              lockReason: "Collect every stamp above to unlock this final station.",
+            },
+          ],
+          completedCount: 0,
+          totalRequired: 2,
+          remainingCount: 2,
+          readyForFinalSurvey: false,
+        },
+        finalSurvey: { available: false, submitted: false, eligible: false, eligibleAt: null },
+      }),
+    }));
+
+    expect(screen.getByLabelText("Final Survey Station, locked")).toBeInTheDocument();
+    expect(screen.getByText("Locked final stamp")).toBeInTheDocument();
+    expect(screen.getByText("Collect every stamp above to unlock this final station.")).toBeInTheDocument();
+  });
+
   it("shows the Final Survey station unlocked after all regular stations are complete", async () => {
     render(await Home({
       delegateHomePromise: Promise.resolve({
@@ -351,7 +436,7 @@ describe("delegate home UI", () => {
         progress: {
           stations: [
             { id: "station-1", name: "AI Booth", completed: true, isFinalSurvey: false, locked: false },
-            { id: "final-survey", name: "Final Survey", completed: false, isFinalSurvey: true, locked: false },
+            { id: "final-survey", name: "Final Survey Station", completed: false, isFinalSurvey: true, locked: false },
           ],
           completedCount: 1,
           totalRequired: 2,
@@ -362,8 +447,8 @@ describe("delegate home UI", () => {
       }),
     }));
 
-    expect(screen.getByText(/Final Survey station unlocked/)).toBeInTheDocument();
-    expect(screen.getByText("Final Survey")).toBeInTheDocument();
+    expect(screen.getByText(/Final Survey Station unlocked/)).toBeInTheDocument();
+    expect(screen.getByText("Final Survey Station")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Submit/ })).not.toBeInTheDocument();
   });
 
@@ -373,7 +458,7 @@ describe("delegate home UI", () => {
         identified: true,
         delegate: { id: "delegate-1", registrationNumber: "REG-001", fullName: "Ada Lovelace" },
         progress: {
-          stations: [{ id: "final-survey", name: "Final Survey", completed: true, isFinalSurvey: true, locked: false }],
+          stations: [{ id: "final-survey", name: "Final Survey Station", completed: true, isFinalSurvey: true, locked: false }],
           completedCount: 1,
           totalRequired: 1,
           remainingCount: 0,

@@ -143,6 +143,7 @@ Winners drawn during a round. A delegate can appear only once until the winner h
 | `admin_participant_progress()` | Returns delegate progress, with `survey_submitted` derived from the Final Survey station stamp. |
 | `admin_station_summaries()` | Returns per-station completion totals for the admin dashboard and exports. |
 | `admin_scan_audit_logs()` | Returns audit entries joined to delegate and station names. |
+| `admin_delete_all_delegates(uuid)` | Verifies an active admin session, then atomically deletes all delegates and their related records. |
 
 ## Removed tables
 

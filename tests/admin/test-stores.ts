@@ -44,6 +44,9 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
     async listStations() {
       return [];
     },
+    async findStationById(stationId) {
+      return { id: stationId, name: "Demo station", active: true };
+    },
     async listVendorAccounts() {
       return [];
     },
@@ -138,6 +141,9 @@ export function createStore(overrides: Partial<AdminTestStore> = {}): AdminTestS
     },
     async setDelegateStationStamp() {
       return;
+    },
+    async deleteAllDelegates() {
+      return 0;
     },
     async createOrUpdateParticipant(participant) {
       return {

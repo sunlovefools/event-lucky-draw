@@ -98,7 +98,11 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
           const isNewStamp = newStampIds.has(station.id);
 
           return (
-            <div key={station.id} className={`stamp ${station.completed ? "stamp-done" : ""} ${station.locked ? "stamp-locked" : ""} ${isNewStamp ? "stamp-new" : ""}`}>
+            <div
+              key={station.id}
+              className={`stamp ${station.completed ? "stamp-done" : ""} ${station.locked ? "stamp-locked" : ""} ${station.isFinalSurvey ? "stamp-final" : ""} ${isNewStamp ? "stamp-new" : ""}`}
+              aria-label={station.locked ? `${station.name}, locked` : undefined}
+            >
               {station.completed ? (
                 <CheckIcon />
               ) : station.locked ? (
@@ -111,6 +115,7 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
                 />
               )}
               <span className="stamp-name">{station.name}</span>
+              {station.locked ? <span className="stamp-lock-label">Locked final stamp</span> : null}
               {station.locked && station.lockReason ? <span className="stamp-lock-reason">{station.lockReason}</span> : null}
               {isNewStamp ? <span className="stamp-burst" aria-hidden="true">STAMP!</span> : null}
             </div>
