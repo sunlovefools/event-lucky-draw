@@ -148,10 +148,7 @@ export default async function ParticipantsPage({
   const safePage = Math.min(page, totalPages);
   const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const drawnDelegateIds = dashboard.drawRounds.flatMap((round) =>
-    round.winners.map((winner) => winner.delegateId),
-  );
-  const eligibleCount = getLuckyDrawPool(allParticipants, drawnDelegateIds).length;
+  const eligibleCount = getLuckyDrawPool(allParticipants).length;
   const completedCount = allParticipants.filter(
     (p) => p.totalActiveStations > 0 && p.stampsCollected >= p.totalActiveStations,
   ).length;

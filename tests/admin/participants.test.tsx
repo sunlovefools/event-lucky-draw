@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import React from "react";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import * as XLSX from "xlsx";
 
@@ -14,7 +15,69 @@ import {
 import { DELETE_ALL_DELEGATES_CONFIRMATION } from "@/lib/shared/delegate-deletion";
 import { createStore } from "./test-stores";
 
+const { getAdminDashboardMock } = vi.hoisted(() => ({
+  getAdminDashboardMock: vi.fn(),
+}));
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => ({ value: "session-1" }) }),
+}));
+
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+}));
+
+vi.mock("@/lib/admin/dashboard", () => ({
+  getAdminDashboard: getAdminDashboardMock,
+  SupabaseDashboardStore: class SupabaseDashboardStore {},
+}));
+
+import ParticipantsPage from "@/app/admin/participants/page";
+
 describe("participant management", () => {
+  it("counts a manually eligible participant in the Participants summary even when winner history exists", async () => {
+    getAdminDashboardMock.mockResolvedValueOnce({
+      authorized: true,
+      admin: { id: "admin-1", username: "organizer" },
+      participation: { open: true, updatedAt: "2026-08-04T00:00:00.000Z", updatedByUsername: "organizer" },
+      stations: [],
+      vendorAccounts: [],
+      vendorSessions: [],
+      participants: [{
+        id: "delegate-1",
+        fullName: "Ada Lovelace",
+        registrationNumber: "REG-001",
+        stampsCollected: 0,
+        totalActiveStations: 3,
+        surveySubmitted: false,
+        drawStatus: "eligible",
+      }],
+      stationSummaries: [],
+      scanAuditLogs: [],
+      drawRounds: [{
+        id: "round-1",
+        roundNumber: 1,
+        openedAt: "2026-08-04T00:00:00.000Z",
+        closedAt: null,
+        isCurrent: true,
+        winners: [{
+          id: "winner-1",
+          delegateId: "delegate-1",
+          fullName: "Ada Lovelace",
+          registrationNumber: "REG-001",
+          roundId: "round-1",
+          roundNumber: 1,
+          wonAt: "2026-08-04T01:00:00.000Z",
+        }],
+      }],
+    });
+
+    render(await ParticipantsPage({ searchParams: Promise.resolve({}) }));
+
+    const eligibleCard = screen.getByText("Draw eligible").closest(".summary-card");
+    expect(eligibleCard).toHaveTextContent("1");
+  });
+
   it("submits the canonical eligible status from the participant controls", () => {
     Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
       configurable: true,
