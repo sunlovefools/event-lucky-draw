@@ -1872,6 +1872,59 @@
           .station-card__actions { gap: 0.65rem; flex-wrap: wrap; }
           .station-card__open { color: #fff; }
 
+          .station-card__copy {
+            min-height: 40px;
+            padding: 0.55rem 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.45rem;
+            border: 1px solid #cbdaf5;
+            border-radius: 11px;
+            color: #315b9f;
+            background: linear-gradient(180deg, #fff, #f4f8ff);
+            box-shadow: 0 3px 10px rgb(36 91 176 / 8%);
+            cursor: pointer;
+            font: inherit;
+            font-size: 0.78rem;
+            font-weight: 750;
+            white-space: nowrap;
+            transition: border-color 180ms ease, color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+          }
+
+          .station-card__copy:hover {
+            border-color: #78a3ef;
+            color: #1859c7;
+            box-shadow: 0 6px 16px rgb(36 91 176 / 15%);
+            transform: translateY(-1px);
+          }
+
+          .station-card__copy-icon {
+            width: 24px;
+            height: 24px;
+            display: inline-grid;
+            place-items: center;
+            border-radius: 7px;
+            color: #2e6ee8;
+            background: #e9f1ff;
+            transition: color 180ms ease, background 180ms ease, transform 180ms ease;
+          }
+
+          .station-card__copy.is-copied {
+            border-color: #91dec2;
+            color: #087a51;
+            background: linear-gradient(180deg, #f2fff9, #e5fbf2);
+            box-shadow: 0 6px 18px rgb(16 145 98 / 15%);
+          }
+
+          .station-card__copy.is-copied .station-card__copy-icon {
+            color: #fff;
+            background: #12a66f;
+            transform: scale(1.08);
+          }
+
+          .station-card__copy.is-error { border-color: #efb1b1; color: #b52929; background: #fff7f7; }
+
           @media (max-width: 1050px) {
             .stations-stats {
               grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1931,7 +1984,8 @@
             .final-station-callout__link { grid-column: 1 / -1; width: 100%; }
 
             .station-card__actions { display: grid; grid-template-columns: 1fr; }
-            .station-card__actions .btn { width: 100%; }
+            .station-card__actions .btn,
+            .station-card__copy { width: 100%; }
           }
 
 /* Vendors page redesign */

@@ -1,13 +1,35 @@
 import React from "react";
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { AdminDashboard } from "@/app/admin/admin-dashboard";
 import { FinalSurveyStationLink } from "@/app/admin/stations/final-survey-station-link";
+import { StationCard } from "@/app/admin/stations/station-card";
 import { createStation, editStation } from "@/lib/admin/stations";
 import { createStore } from "./test-stores";
 
 describe("station management", () => {
+  it("copies the station page URL and shows a clear success state", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(
+      <StationCard
+        station={{ id: "station-1", name: "AI Booth", active: true }}
+        index={0}
+        redirectTo="/admin/stations"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy link for AI Booth" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("http://localhost:3000/station/AI%20Booth"));
+    expect(screen.getByRole("button", { name: "Copy link for AI Booth" })).toHaveTextContent("Copied!");
+  });
+
   it("lets an authenticated admin create and edit active or disabled stations", async () => {
     const createdStations: Array<{ name: string; active: boolean }> = [];
     const updatedStations: Array<{ stationId: string; name: string; active: boolean }> = [];

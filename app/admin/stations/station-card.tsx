@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { editStationAction } from "@/app/admin/actions";
-import { IconPencil, IconStore } from "@/app/admin/icons";
+import { IconCheck, IconCopy, IconPencil, IconStore } from "@/app/admin/icons";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
 type StationCardProps = {
@@ -15,12 +15,30 @@ type StationCardProps = {
 
 export function StationCard({ station, index, redirectTo }: StationCardProps) {
   const [editingName, setEditingName] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const nameInput = useRef<HTMLInputElement>(null);
+  const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stationHref = `/station/${encodeURIComponent(station.name)}`;
 
   useEffect(() => {
     if (editingName) nameInput.current?.focus();
   }, [editingName]);
+
+  useEffect(() => () => {
+    if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+  }, []);
+
+  async function copyStationLink() {
+    try {
+      await navigator.clipboard.writeText(new URL(stationHref, window.location.origin).toString());
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+
+    if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+    copyResetTimer.current = setTimeout(() => setCopyState("idle"), 2400);
+  }
 
   return (
     <article className="station-card">
@@ -56,6 +74,19 @@ export function StationCard({ station, index, redirectTo }: StationCardProps) {
           <div className="station-card__actions">
             <PendingSubmitButton className="btn btn-primary station-card__save" pendingLabel="Saving…">Save changes</PendingSubmitButton>
             <Link href={stationHref} className="btn btn-accent station-card__open" target="_blank" rel="noreferrer">Open station page</Link>
+            <button
+              type="button"
+              className={`station-card__copy ${copyState === "copied" ? "is-copied" : ""} ${copyState === "error" ? "is-error" : ""}`}
+              onClick={copyStationLink}
+              aria-label={`Copy link for ${station.name}`}
+              aria-live="polite"
+              title="Copy station link"
+            >
+              <span className="station-card__copy-icon" aria-hidden="true">
+                {copyState === "copied" ? <IconCheck size={15} strokeWidth={2.5} /> : <IconCopy size={15} />}
+              </span>
+              {copyState === "copied" ? "Copied!" : copyState === "error" ? "Try again" : "Copy link"}
+            </button>
           </div>
         </div>
       </form>
