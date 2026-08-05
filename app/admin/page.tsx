@@ -6,6 +6,7 @@ import { getAdminDashboard, SupabaseDashboardStore } from "@/lib/admin/dashboard
 import { getHealthStatus } from "@/lib/health";
 import { adminErrorMessage } from "@/app/admin/errors";
 import { AdminOverview } from "@/app/admin/overview";
+import { getDrawSettings, SupabaseDrawSettingsStore } from "@/lib/admin/draw-settings";
 
 export default async function AdminPage({
   searchParams,
@@ -23,5 +24,10 @@ export default async function AdminPage({
     redirect("/admin?error=login-required");
   }
 
-  return <AdminOverview dashboard={dashboard} error={adminErrorMessage(params?.error)} health={await getHealthStatus()} />;
+  const [health, drawSettings] = await Promise.all([
+    getHealthStatus(),
+    getDrawSettings({ store: new SupabaseDrawSettingsStore() }),
+  ]);
+
+  return <AdminOverview dashboard={dashboard} drawSettings={drawSettings} error={adminErrorMessage(params?.error)} health={health} />;
 }

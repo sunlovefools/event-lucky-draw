@@ -282,8 +282,50 @@ describe("vendor portal UI", () => {
     expect(screen.getByRole("heading", { name: "AI Booth" })).toBeInTheDocument();
     expect(screen.getAllByText(/Use this station link to stamp delegates/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Scan the delegate's badge QR/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/DLGTxxxx/i).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Allow camera access" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh list" })).toBeInTheDocument();
+  });
+
+  it("shows the revised six-step tutorial and its successful-scan example", async () => {
+    window.localStorage.clear();
+    render(
+      <VendorPortal
+        dashboard={{
+          found: true,
+          station: { id: "station-1", name: "AI Booth", active: true },
+          participationOpen: true,
+          scanHistory: [],
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("dialog", { name: "Welcome to your vendor Stamp Page" })).toBeInTheDocument();
+    expect(screen.getByText("Step 1 of 6")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    expect(screen.getByRole("dialog", { name: "Scan or Enter the Delegate Code" })).toHaveTextContent("DLGTxxxx");
+
+    const successDemo = document.querySelector<HTMLElement>("[data-tutorial='vendor-success-demo']");
+    expect(successDemo).not.toBeNull();
+    vi.spyOn(successDemo!, "getBoundingClientRect").mockReturnValue({
+      top: 160,
+      right: 340,
+      bottom: 260,
+      left: 20,
+      width: 320,
+      height: 100,
+      x: 20,
+      y: 160,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    expect(screen.getByRole("dialog", { name: "Scan Successful" })).toBeInTheDocument();
+    expect(document.body).toHaveAttribute("data-tutorial-effect", "vendor-success-demo");
+    expect(successDemo).toHaveTextContent("Scan successful");
+    expect(document.querySelector(".tutorial-spotlight")).toBeInTheDocument();
   });
 
   it("keeps the QR reader mounted while requesting camera access", () => {

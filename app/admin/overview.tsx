@@ -6,6 +6,8 @@ import { getLuckyDrawPool } from "@/lib/admin/draw";
 import type { HealthStatus } from "@/lib/health";
 import { AdminCard, formatTime } from "@/app/admin/ui";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
+import { DrawSettingsModal } from "@/app/admin/draw-settings-modal";
+import { DEFAULT_DRAW_SETTINGS, type DrawSettings } from "@/lib/admin/draw-settings";
 import {
   IconPower,
   IconActivity,
@@ -27,10 +29,12 @@ export function AdminOverview({
   dashboard,
   error,
   health,
+  drawSettings = DEFAULT_DRAW_SETTINGS,
 }: {
   dashboard: Extract<AdminDashboardResult, { authorized: true }>;
   error?: string;
   health?: HealthStatus;
+  drawSettings?: DrawSettings;
 }) {
   const { participation, stations, participants, stationSummaries, scanAuditLogs, drawRounds } = dashboard;
   const activeStations = stations.filter((s) => s.active).length;
@@ -41,6 +45,8 @@ export function AdminOverview({
     .flatMap((r) => r.winners.map((w) => ({ ...w, roundNumber: r.roundNumber })))
     .sort((a, b) => (a.wonAt < b.wonAt ? 1 : -1));
   const eligibleCount = getLuckyDrawPool(participants, allWinners.map((winner) => winner.delegateId)).length;
+  const eligibleCandidateNames = getLuckyDrawPool(participants, allWinners.map((winner) => winner.delegateId))
+    .map((participant) => participant.fullName);
   const recentWinners = allWinners.slice(0, 8);
 
   const statTiles = [
@@ -130,10 +136,13 @@ export function AdminOverview({
         title="Lucky draw"
         iconAccent
         action={
-          <Link href="/display" className="btn btn-primary" target="_blank" rel="noreferrer">
-            <IconArrowRight size={18} />
-            Main drawing page
-          </Link>
+          <div className="row draw-card-actions">
+            <DrawSettingsModal settings={drawSettings} candidateNames={eligibleCandidateNames} redirectTo="/admin" />
+            <Link href="/display" className="btn btn-primary" target="_blank" rel="noreferrer">
+              <IconArrowRight size={18} />
+              Main drawing page
+            </Link>
+          </div>
         }
       >
         <div className="participation-banner">
@@ -182,9 +191,8 @@ export function AdminOverview({
         ) : (
           <ul className="list">
             {recentWinners.map((winner) => (
-              <li key={winner.id} className="list-item">
+              <li key={winner.id} className="list-item recent-winner-item">
                 <span className="list-item-title">{winner.fullName}</span>
-                <br />
                 <span className="muted nowrap">#{winner.registrationNumber} · {formatTime(winner.wonAt)}</span>
               </li>
             ))}

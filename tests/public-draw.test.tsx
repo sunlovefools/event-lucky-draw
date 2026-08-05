@@ -98,11 +98,12 @@ describe("admin lucky draw display", () => {
       <AdminDrawScreen
         initialState={{ status: "waiting", winner: null }}
         candidateNames={["Ada Lovelace", "Grace Hopper", "Katherine Johnson"]}
+        nameDisplayDurationMs={75}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Draw winner" }));
-    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByText("Katherine Johnson")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(75);

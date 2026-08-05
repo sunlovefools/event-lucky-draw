@@ -72,7 +72,6 @@ export default async function StationsPage({
         icon={IconStore}
         eyebrow="Manage"
         title="Exhibition stations"
-        action={<CreateStationModal redirectTo={redirectTo} />}
       >
         <div className="stations-heading">
           <div>
@@ -116,6 +115,7 @@ export default async function StationsPage({
                   : `${filteredStations.length} of ${totalStations} stations`}
               </p>
             </div>
+            <CreateStationModal redirectTo={redirectTo} />
           </div>
 
           <form method="get" action="/admin/stations" className="stations-toolbar">

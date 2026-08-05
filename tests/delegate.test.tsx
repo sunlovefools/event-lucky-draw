@@ -89,10 +89,25 @@ describe("delegate registration and resume", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      delegate: { id: "delegate-1", registrationNumber: "manual-42", fullName: "Grace Hopper" },
+      delegate: { id: "delegate-1", registrationNumber: "MANUAL-42", fullName: "Grace Hopper" },
       session: { id: "delegate-session-1", delegateId: "delegate-1" },
       resumed: true,
     });
+  });
+
+  it("matches typed and scanned delegate codes without regard to letter case", async () => {
+    const lookedUpRegistrationNumbers: string[] = [];
+    const store = createStore({
+      async findDelegateByRegistrationNumber(registrationNumber) {
+        lookedUpRegistrationNumbers.push(registrationNumber);
+        return { id: "delegate-1", registrationNumber: "ABCD", fullName: "Ada Lovelace" };
+      },
+    });
+
+    await registerOrResumeDelegate({ store, registrationNumber: "abcd", fullName: "" });
+    await identifyDelegate({ store, badgePayload: "https://event.example/badge?reg=AbCd", fullName: "" });
+
+    expect(lookedUpRegistrationNumbers).toEqual(["ABCD", "ABCD"]);
   });
 
   it("rejects unknown delegate IDs without creating a session", async () => {
@@ -424,8 +439,13 @@ describe("delegate home UI", () => {
     }));
 
     expect(screen.getByLabelText("Final Survey Station, locked")).toBeInTheDocument();
-    expect(screen.getByText("Locked final stamp")).toBeInTheDocument();
-    expect(screen.getByText("Collect every stamp above to unlock this final station.")).toBeInTheDocument();
+    expect(screen.getByText("Locked")).toBeInTheDocument();
+
+    const lockedStamp = screen.getByLabelText("Final Survey Station, locked");
+    const unlockHelp = screen.getByRole("note", { name: "How to unlock the Final Survey Station" });
+    expect(lockedStamp).not.toContainElement(unlockHelp);
+    expect(unlockHelp).toHaveTextContent("Final Survey Station is locked");
+    expect(unlockHelp).toHaveTextContent("Collect every other station stamp first");
   });
 
   it("shows the Final Survey station unlocked after all regular stations are complete", async () => {

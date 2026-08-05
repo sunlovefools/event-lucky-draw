@@ -11,6 +11,7 @@ import { type Delegate, extractRegistrationNumberFromBadgePayload } from "@/lib/
 import { isFinalSurveyStationName, stationFromRow, type Station } from "@/lib/shared/station";
 import { delegateFromRow } from "@/lib/delegate-session";
 import { formatParticipantName } from "@/lib/shared/participant";
+import { escapePostgresLikePattern } from "@/lib/shared/normalize";
 import { STATION_SCAN_HISTORY_LIMIT } from "@/lib/vendor/config";
 
 export type StationDashboardResult =
@@ -359,7 +360,7 @@ export class SupabaseVendorStore implements VendorPortalStore {
     const { data, error } = await this.supabase
       .from("delegates")
       .select("id, registration_number, full_name, title")
-      .eq("registration_number", registrationNumber)
+      .ilike("registration_number", escapePostgresLikePattern(registrationNumber))
       .maybeSingle<DelegateRow>();
 
     if (error) {

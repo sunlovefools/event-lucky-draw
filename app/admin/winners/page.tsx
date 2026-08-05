@@ -8,6 +8,9 @@ import { resetDrawRoundAction } from "@/app/admin/actions";
 import { AdminCard, EmptyState, formatTime } from "@/app/admin/ui";
 import { IconTrophy, IconCrown, IconRefresh } from "@/app/admin/icons";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
+import { DrawSettingsModal } from "@/app/admin/draw-settings-modal";
+import { getLuckyDrawPool } from "@/lib/admin/draw";
+import { getDrawSettings, SupabaseDrawSettingsStore } from "@/lib/admin/draw-settings";
 
 export default async function WinnersPage() {
   const cookieStore = await cookies();
@@ -17,9 +20,14 @@ export default async function WinnersPage() {
   });
   if (!dashboard.authorized) redirect("/admin?error=login-required");
 
+  const drawSettings = await getDrawSettings({ store: new SupabaseDrawSettingsStore() });
+
   const winners = dashboard.drawRounds
     .flatMap((draw) => draw.winners)
     .sort((a, b) => (a.wonAt < b.wonAt ? 1 : -1));
+  const winnerIds = winners.map((winner) => winner.delegateId);
+  const eligibleCandidateNames = getLuckyDrawPool(dashboard.participants, winnerIds)
+    .map((participant) => participant.fullName);
 
   return (
     <div className="module-grid">
@@ -29,6 +37,7 @@ export default async function WinnersPage() {
         title="Winner history"
         action={
           <span className="row" style={{ gap: ".5rem" }}>
+            <DrawSettingsModal settings={drawSettings} candidateNames={eligibleCandidateNames} redirectTo="/admin/winners" />
             <Link href="/display" className="icon-btn" target="_blank" rel="noreferrer">
               Public display
             </Link>

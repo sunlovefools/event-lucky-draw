@@ -7,6 +7,7 @@ import { getPublicDrawState, SupabasePublicDrawStore } from "@/lib/public-draw";
 import { getAdminDashboard, SupabaseDashboardStore } from "@/lib/admin/dashboard";
 import { getLuckyDrawPool } from "@/lib/admin/draw";
 import { requireAdminSession, SupabaseAdminAuthStore } from "@/lib/auth/admin-auth";
+import { getDrawSettings, SupabaseDrawSettingsStore } from "@/lib/admin/draw-settings";
 
 export default async function PublicDrawDisplayPage() {
   const cookieStore = await cookies();
@@ -21,9 +22,10 @@ export default async function PublicDrawDisplayPage() {
     redirect("/admin?error=login-required");
   }
 
-  const [initialState, dashboard] = await Promise.all([
+  const [initialState, dashboard, drawSettings] = await Promise.all([
     getPublicDrawState({ store: new SupabasePublicDrawStore() }),
     getAdminDashboard({ store: new SupabaseDashboardStore(), sessionId }),
+    getDrawSettings({ store: new SupabaseDrawSettingsStore() }),
   ]);
 
   const previousWinnerIds = new Set(
@@ -35,5 +37,12 @@ export default async function PublicDrawDisplayPage() {
         .map((participant) => participant.fullName)
     : [];
 
-  return <AdminDrawScreen initialState={initialState} candidateNames={candidateNames} />;
+  return (
+    <AdminDrawScreen
+      initialState={initialState}
+      candidateNames={candidateNames}
+      spinDurationMs={drawSettings.spinDurationMs}
+      nameDisplayDurationMs={drawSettings.nameDisplayDurationMs}
+    />
+  );
 }

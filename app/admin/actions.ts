@@ -24,6 +24,7 @@ import {
 } from "@/lib/admin/participants";
 import { drawLuckyWinner, resetDrawRound, deleteDrawRound, SupabaseDrawStore } from "@/lib/admin/draw";
 import { setParticipationState, SupabaseDashboardStore } from "@/lib/admin/dashboard";
+import { saveDrawSettings, SupabaseDrawSettingsStore } from "@/lib/admin/draw-settings";
 
 // Resolves where an action should send the admin after succeeding. Any value
 // that does not point inside /admin is ignored, so a tampered form cannot
@@ -107,6 +108,27 @@ export async function setParticipationAction(formData: FormData) {
 
   if (!result.ok) {
     redirect(`/admin?error=login-required`);
+  }
+
+  redirect(target);
+}
+
+export async function saveDrawSettingsAction(formData: FormData) {
+  const target = resolveRedirect(formData);
+  const spinDurationSeconds = Number(formData.get("spinDurationSeconds"));
+  const nameDisplayDurationSeconds = Number(formData.get("nameDisplayDurationSeconds"));
+  const store = new SupabaseDrawSettingsStore();
+  const result = await withAdminSession(store, (sessionId) => saveDrawSettings({
+    store,
+    sessionId,
+    settings: {
+      spinDurationMs: spinDurationSeconds * 1000,
+      nameDisplayDurationMs: nameDisplayDurationSeconds * 1000,
+    },
+  }));
+
+  if (!result.ok) {
+    redirect(withQuery(target, { error: result.error === "Admin login required." ? "login-required" : "draw-settings-invalid" }));
   }
 
   redirect(target);

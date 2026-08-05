@@ -59,6 +59,9 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
   const key = storageKey(delegateId);
   const refreshKey = `${key}:refresh`;
   const completedIds = useMemo(() => stations.filter((station) => station.completed).map((station) => station.id), [stations]);
+  const lockedStation = stations.find((station) => station.locked);
+  const firstRegularStation = stations.find((station) => !station.isFinalSurvey);
+  const remainingRegularStations = stations.filter((station) => !station.isFinalSurvey && !station.completed).length;
   const completedSignature = completedIds.join("|");
 
   useEffect(() => {
@@ -84,12 +87,12 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
   }
 
   return (
-    <div style={{ marginTop: "1.5rem" }}>
+    <div className="delegate-stamps-section" data-tutorial="delegate-stamps-panel" style={{ marginTop: "1.5rem" }}>
       <div className="row-between" style={{ marginBottom: "0.75rem" }}>
         <h3>Stamps</h3>
-        <button type="button" className="btn btn-sm btn-ghost" disabled={pending} onClick={refreshStamps}>
+        <button type="button" className="btn btn-sm btn-ghost refresh-progress-btn" data-tutorial="delegate-refresh" disabled={pending} onClick={refreshStamps}>
           <RefreshIcon />
-          {pending ? "Refreshing…" : "Refresh Stamps"}
+          {pending ? "Refreshing…" : "Refresh Progress"}
         </button>
       </div>
 
@@ -101,6 +104,8 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
             <div
               key={station.id}
               className={`stamp ${station.completed ? "stamp-done" : ""} ${station.locked ? "stamp-locked" : ""} ${station.isFinalSurvey ? "stamp-final" : ""} ${isNewStamp ? "stamp-new" : ""}`}
+              data-tutorial={station.isFinalSurvey ? "delegate-final-station" : "delegate-station"}
+              data-tutorial-demo={station.id === firstRegularStation?.id ? "stamp" : station.isFinalSurvey ? "final-station" : undefined}
               aria-label={station.locked ? `${station.name}, locked` : undefined}
             >
               {station.completed ? (
@@ -115,13 +120,32 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
                 />
               )}
               <span className="stamp-name">{station.name}</span>
-              {station.locked ? <span className="stamp-lock-label">Locked final stamp</span> : null}
-              {station.locked && station.lockReason ? <span className="stamp-lock-reason">{station.lockReason}</span> : null}
+              <span className={`stamp-state ${station.completed ? "stamp-state--completed" : station.locked ? "stamp-state--locked" : station.isFinalSurvey ? "stamp-state--available" : "stamp-state--pending"}`}>
+                {station.completed ? "Completed" : station.locked ? "Locked" : station.isFinalSurvey ? "Final Station Available" : "Not Started"}
+              </span>
               {isNewStamp ? <span className="stamp-burst" aria-hidden="true">STAMP!</span> : null}
             </div>
           );
         })}
       </div>
+
+      {lockedStation ? (
+        <aside
+          className="stamp-lock-help"
+          role="note"
+          aria-label={`How to unlock the ${lockedStation.name}`}
+        >
+          <span className="stamp-lock-help__icon" aria-hidden="true">
+            <LockIcon />
+          </span>
+          <div>
+            <strong>{lockedStation.name} is locked</strong>
+            <p>
+              Collect every other station stamp first. Complete {remainingRegularStations} more {remainingRegularStations === 1 ? "station" : "stations"} to unlock.
+            </p>
+          </div>
+        </aside>
+      ) : null}
     </div>
   );
 }

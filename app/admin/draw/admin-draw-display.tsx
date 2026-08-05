@@ -3,21 +3,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PublicDrawState } from "@/lib/public-draw";
+import { createShuffledNameDeck } from "@/lib/shared/name-deck";
 
 type DisplayPhase = "waiting" | "animating" | "revealed";
 type Winner = NonNullable<PublicDrawState["winner"]>;
 
 const IDLE_MESSAGE = "READY";
 const FALLBACK_SLOT_NAMES = ["Lucky delegate", "Eligible participant", "Next winner"];
-
-function pickSlotName(names: string[], previous: string) {
-  const pool = names.length > 0 ? names : FALLBACK_SLOT_NAMES;
-  if (pool.length === 1) return pool[0];
-
-  let next = previous;
-  while (next === previous) next = pool[Math.floor(Math.random() * pool.length)];
-  return next;
-}
 
 function Celebration() {
   return (
@@ -45,11 +37,15 @@ export function AdminDrawScreen({
   initialState: _initialState,
   candidateNames = [],
   pollMs = 3000,
-  minRevealMs = 900,
+  spinDurationMs = 10_000,
+  nameDisplayDurationMs = 100,
+  minRevealMs,
 }: {
   initialState: PublicDrawState;
   candidateNames?: string[];
   pollMs?: number;
+  spinDurationMs?: number;
+  nameDisplayDurationMs?: number;
   minRevealMs?: number;
 }) {
   const mountedAt = useRef(Date.now());
@@ -61,7 +57,9 @@ export function AdminDrawScreen({
   const [drawPending, setDrawPending] = useState(false);
   const visibleWinnerId = useRef<string | null>(null);
   const slotTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const names = useMemo(() => candidateNames.filter(Boolean), [candidateNames]);
+  const nameDeck = useRef<ReturnType<typeof createShuffledNameDeck> | null>(null);
+  const names = useMemo(() => Array.from(new Set(candidateNames.filter(Boolean))), [candidateNames]);
+  const revealDelayMs = minRevealMs ?? spinDurationMs;
 
   function stopSlot() {
     if (slotTimer.current) {
@@ -78,22 +76,23 @@ export function AdminDrawScreen({
   function startSlot() {
     stopSlot();
     setPhase("animating");
+    nameDeck.current = createShuffledNameDeck(names.length > 0 ? names : FALLBACK_SLOT_NAMES, slotName);
     setSlotName((current) => {
-      const next = pickSlotName(names, current);
+      const next = nameDeck.current?.() ?? current;
       setPreviousSlotName(current);
       return next;
     });
     slotTimer.current = setInterval(() => {
       setSlotName((current) => {
-        const next = pickSlotName(names, current);
+        const next = nameDeck.current?.() ?? current;
         setPreviousSlotName(current);
         return next;
       });
-    }, 75);
+    }, nameDisplayDurationMs);
   }
 
   function revealWinner(winner: Winner, startedAt = Date.now()) {
-    const remaining = Math.max(0, minRevealMs - (Date.now() - startedAt));
+    const remaining = Math.max(0, revealDelayMs - (Date.now() - startedAt));
     setTimeout(() => {
       stopSlot();
       visibleWinnerId.current = winner.id;
@@ -120,7 +119,7 @@ export function AdminDrawScreen({
     }
     const interval = setInterval(poll, pollMs);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [drawPending, phase, pollMs, minRevealMs, names]);
+  }, [drawPending, phase, pollMs, revealDelayMs, nameDisplayDurationMs, names]);
 
   useEffect(() => () => stopSlot(), []);
 

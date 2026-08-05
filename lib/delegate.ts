@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { delegateFromRow, type DelegateRow, type SessionDelegate } from "@/lib/delegate-session";
-import { normalizeRegistrationNumber } from "@/lib/shared/normalize";
+import { escapePostgresLikePattern, normalizeRegistrationNumber } from "@/lib/shared/normalize";
 import { isFinalSurveyStationName, sortStationsWithFinalSurveyLast } from "@/lib/shared/station";
 
 export type Delegate = SessionDelegate;
@@ -247,7 +247,7 @@ export class SupabaseDelegateStore implements DelegateStore {
     const { data, error } = await this.supabase
       .from("delegates")
       .select("id, registration_number, full_name, title")
-      .eq("registration_number", registrationNumber)
+      .ilike("registration_number", escapePostgresLikePattern(registrationNumber))
       .maybeSingle<DelegateRow>();
 
     if (error) {

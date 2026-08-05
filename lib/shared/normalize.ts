@@ -6,7 +6,12 @@ export function normalizeUsername(username: string) {
 }
 
 export function normalizeRegistrationNumber(registrationNumber: string) {
-  return registrationNumber.trim();
+  return registrationNumber.trim().toUpperCase();
+}
+
+// Keep `ilike` exact: these characters otherwise act as SQL pattern syntax.
+export function escapePostgresLikePattern(value: string) {
+  return value.replace(/[\\%_]/g, "\\$&");
 }
 
 export function normalizeFullName(fullName: string) {

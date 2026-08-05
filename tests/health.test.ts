@@ -75,7 +75,7 @@ describe("home page", () => {
   it("renders the app shell and the delegate registration scanner", async () => {
     render(await Home({ }));
 
-    expect(screen.getByRole("heading", { name: "Event Station Quest Lucky Draw" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "FFNM & MyBone Lucky Draw Challenge" })).toBeInTheDocument();
     expect(screen.getByText(/collect your stamps/));
     expect(screen.getByText("Scan Your Conference Badge QR")).toBeInTheDocument();
   });

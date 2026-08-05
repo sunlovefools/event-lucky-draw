@@ -492,6 +492,7 @@ h3 {
 .stamp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-auto-rows: 1fr;
   gap: var(--space-3);
 }
 .stamp {
@@ -508,6 +509,8 @@ h3 {
   background: var(--color-surface-2);
   color: var(--color-muted);
   min-height: 110px;
+  height: 100%;
+  min-width: 0;
 }
 .stamp-name {
   font-weight: 600;
@@ -520,7 +523,7 @@ h3 {
   background: var(--color-success-soft);
   color: var(--color-accent-strong);
 }
-  .stamp-locked {
+.stamp-locked {
   border-style: solid;
   border-color: var(--color-border-strong);
   background: color-mix(in srgb, var(--color-surface-2) 78%, #000 4%);
@@ -530,11 +533,56 @@ h3 {
   border: 2px solid var(--color-border-strong);
   color: var(--color-muted);
 }
-.stamp-lock-reason {
-  max-width: 11rem;
+.stamp-lock-label {
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-pill);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.stamp-lock-help {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, var(--color-border));
+  border-radius: var(--radius);
+  background: var(--color-info-soft);
+  color: var(--color-foreground);
+}
+.stamp-lock-help__icon {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-primary-strong);
+  box-shadow: var(--shadow-sm);
+}
+.stamp-lock-help__icon .stamp-check {
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: currentColor;
+}
+.stamp-lock-help strong {
+  display: block;
+  line-height: 1.3;
+}
+.stamp-lock-help p {
+  margin-top: var(--space-1);
   color: var(--color-muted);
-  font-size: 0.72rem;
-  line-height: 1.25;
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 .stamp-new {
   animation: stamp-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1), stamp-glow 900ms ease-out;
@@ -594,6 +642,392 @@ h3 {
 .stat-label {
   color: var(--color-muted);
   font-size: 0.85rem;
+}
+.progress-summary-copy {
+  margin-bottom: var(--space-2);
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------ Delegate page / states */
+.tutorial-launcher svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+}
+.delegate-welcome-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.delegate-welcome-actions {
+  align-items: flex-end;
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+.tutorial-launcher--delegate {
+  position: relative;
+  min-height: 36px;
+  padding: 0.35rem 0.75rem;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 0.82rem;
+}
+.tutorial-launcher--delegate::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+.tutorial-launcher--delegate:hover,
+.tutorial-launcher--delegate:active {
+  border-color: var(--color-primary-strong);
+  background: var(--color-primary-strong);
+  color: var(--color-on-primary);
+}
+.stamp-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.stamp-state--completed {
+  color: var(--color-accent-strong);
+  background: color-mix(in srgb, var(--color-surface) 75%, var(--color-success-soft));
+}
+.stamp-state--locked {
+  color: var(--color-foreground);
+  background: var(--color-surface);
+}
+.stamp-state--available {
+  color: var(--color-primary-strong);
+  background: var(--color-info-soft);
+}
+.stamp-state--pending {
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.delegate-entry-confirmed {
+  position: relative;
+  overflow: hidden;
+}
+.delegate-stamps-section {
+  border-radius: var(--radius);
+}
+.delegate-status-card {
+  position: relative;
+  overflow: hidden;
+}
+.refresh-progress-btn {
+  animation: refresh-attention 900ms ease-out 320ms 2;
+}
+@keyframes refresh-attention {
+  0%, 100% { box-shadow: none; }
+  45% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-primary) 16%, transparent); }
+}
+
+/* ------------------------------------------------------ Guided tutorial */
+.tutorial-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.tutorial-launcher {
+  white-space: nowrap;
+}
+.tutorial-shade {
+  position: fixed;
+  z-index: 0;
+  background: rgb(15 23 42 / 68%);
+  backdrop-filter: blur(1.5px);
+  pointer-events: auto;
+}
+.tutorial-shade--full {
+  inset: 0;
+}
+.tutorial-spotlight {
+  position: fixed;
+  z-index: 1;
+  border: 3px solid #fff;
+  background: transparent;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 88%), 0 0 0 9999px rgb(15 23 42 / 68%);
+  pointer-events: none;
+}
+.tutorial-sheet {
+  position: fixed;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  left: max(1rem, env(safe-area-inset-left));
+  right: max(1rem, env(safe-area-inset-right));
+  width: auto;
+  max-width: 35rem;
+  max-height: min(48dvh, 22rem);
+  margin-inline: auto;
+  overflow: auto;
+  padding: var(--space-4);
+  border: 1px solid rgb(255 255 255 / 75%);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+  touch-action: pan-y;
+  animation: tutorial-sheet-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.tutorial-sheet--bottom {
+  bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.tutorial-sheet--top {
+  top: max(1rem, env(safe-area-inset-top));
+}
+.tutorial-progress-row,
+.tutorial-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.tutorial-close {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.tutorial-close:hover,
+.tutorial-close:active {
+  background: var(--color-surface-2);
+  color: var(--color-foreground);
+}
+.tutorial-close svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+.tutorial-progress-row {
+  min-height: 44px;
+  margin: -0.5rem -0.5rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tutorial-progress {
+  height: 6px;
+  margin-top: var(--space-2);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+}
+.tutorial-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gradient-accent);
+  transition: width 240ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tutorial-copy {
+  flex: 1 1 auto;
+  overflow: auto;
+  margin: var(--space-4) 0;
+}
+.tutorial-copy h2 {
+  font-size: clamp(1.4rem, 5vw, 1.8rem);
+  line-height: 1.15;
+}
+.tutorial-copy h2:focus {
+  outline: none;
+}
+.tutorial-copy p {
+  max-width: 52ch;
+  margin-top: var(--space-2);
+  color: var(--color-muted);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+.tutorial-actions .btn {
+  flex: 1 1 0;
+  min-height: 48px;
+}
+.tutorial-actions .btn svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+@keyframes tutorial-sheet-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Tutorial-only demonstrations; these never change stored progress. */
+.vendor-success-demo {
+  display: none;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-success) 45%, var(--color-border));
+  border-radius: var(--radius);
+  background: var(--color-success-soft);
+  color: var(--color-foreground);
+}
+body[data-tutorial-effect="vendor-success-demo"] .vendor-success-demo {
+  display: flex;
+}
+.vendor-success-demo__icon {
+  display: grid;
+  flex: 0 0 2.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-success);
+  color: var(--color-on-accent);
+}
+.vendor-success-demo__icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.vendor-success-demo strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+.vendor-success-demo p {
+  margin: 0.2rem 0 0;
+  color: var(--color-muted);
+  line-height: 1.45;
+}
+body[data-tutorial-effect="delegate-refresh-demo"] [data-tutorial="delegate-refresh"] {
+  animation: tutorial-control-pulse 2.6s ease-in-out infinite;
+}
+body[data-tutorial-effect="delegate-refresh-demo"] [data-tutorial="delegate-refresh"] svg {
+  animation: tutorial-refresh-spin 2.6s ease-in-out infinite;
+}
+body[data-tutorial-effect="delegate-refresh-demo"] [data-tutorial-demo="stamp"] {
+  animation: tutorial-stamp-award 2.6s ease-in-out infinite;
+}
+body[data-tutorial-effect="delegate-refresh-demo"] [data-tutorial-demo="stamp"]::after,
+body[data-tutorial-effect="delegate-unlock-demo"] [data-tutorial-demo="final-station"]::after {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  padding: 0.18rem 0.45rem;
+  border-radius: var(--radius-pill);
+  color: var(--color-on-accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  opacity: 0;
+}
+body[data-tutorial-effect="delegate-refresh-demo"] [data-tutorial-demo="stamp"]::after {
+  content: "STAMP!";
+  background: var(--color-accent);
+  animation: tutorial-demo-label 2.6s ease-in-out infinite;
+}
+body[data-tutorial-effect="delegate-unlock-demo"] [data-tutorial-demo="final-station"] {
+  animation: tutorial-station-unlock 2.8s ease-in-out infinite;
+}
+body[data-tutorial-effect="delegate-unlock-demo"] [data-tutorial-demo="final-station"]::after {
+  content: "UNLOCKED";
+  background: var(--color-primary);
+  animation: tutorial-demo-label 2.8s ease-in-out infinite;
+}
+body[data-tutorial-effect="delegate-entry-demo"] .delegate-status-card::after {
+  content: "Lucky Draw Entry Confirmed";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: var(--color-success-soft);
+  color: var(--color-accent-strong);
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 6vw, 2.25rem);
+  text-align: center;
+  opacity: 0;
+  animation: tutorial-entry-confirmed 3s ease-in-out infinite;
+}
+@keyframes tutorial-control-pulse {
+  0%, 18%, 100% { box-shadow: none; }
+  28%, 42% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-primary) 20%, transparent); }
+}
+@keyframes tutorial-refresh-spin {
+  0%, 18%, 52%, 100% { transform: rotate(0); }
+  42% { transform: rotate(360deg); }
+}
+@keyframes tutorial-stamp-award {
+  0%, 46%, 100% {
+    transform: scale(1);
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-2);
+    box-shadow: none;
+  }
+  58%, 82% {
+    transform: scale(1.035);
+    border-color: var(--color-accent);
+    background: var(--color-success-soft);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-accent) 14%, transparent);
+  }
+}
+@keyframes tutorial-station-unlock {
+  0%, 28%, 100% {
+    transform: scale(1);
+    border-color: var(--color-border-strong);
+    background: color-mix(in srgb, var(--color-surface-2) 78%, #000 4%);
+    box-shadow: none;
+  }
+  44%, 78% {
+    transform: scale(1.035);
+    border-color: var(--color-primary);
+    background: var(--color-info-soft);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-primary) 14%, transparent);
+  }
+}
+@keyframes tutorial-demo-label {
+  0%, 42%, 90%, 100% { opacity: 0; transform: translateY(-4px) scale(0.9); }
+  55%, 80% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes tutorial-entry-confirmed {
+  0%, 36%, 100% { opacity: 0; transform: translateY(10px); }
+  50%, 82% { opacity: 1; transform: translateY(0); }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .tutorial-sheet--side-left,
+  .tutorial-sheet--side-right {
+    top: max(0.75rem, env(safe-area-inset-top));
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    width: min(25rem, calc(50vw - 1.5rem));
+    max-height: calc(100dvh - 1.5rem);
+    margin: 0;
+  }
+  .tutorial-sheet--side-left {
+    left: max(0.75rem, env(safe-area-inset-left));
+    right: auto;
+  }
+  .tutorial-sheet--side-right {
+    right: max(0.75rem, env(safe-area-inset-right));
+    left: auto;
+  }
 }
 
 /* ------------------------------------------------------- Section nav */
@@ -964,20 +1398,6 @@ dl.health dd {
     transform: scale(0.72) translateY(18px) rotate(-1deg);
     opacity: 0.72;
   }
-  .stamp-final {
-    grid-column: 1 / -1;
-    min-height: 132px;
-  }
-  .stamp-lock-label {
-    padding: 0.2rem 0.55rem;
-    border-radius: var(--radius-pill);
-    color: var(--color-foreground);
-    background: var(--color-surface);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
   24% {
     transform: scale(0.93) translateY(2px) rotate(1deg);
     opacity: 1;
@@ -1255,6 +1675,25 @@ dl.health dd {
 
 /* ============================================================ Responsive */
 @media (max-width: 600px) {
+  .stamp-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 180px;
+  }
+  .stamp {
+    height: 100%;
+    min-height: 0;
+    padding: var(--space-3) var(--space-2);
+  }
+  .stamp-name {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .stamp-lock-help {
+    align-items: start;
+    padding: var(--space-3);
+  }
   .shell {
     padding-top: var(--space-5);
     gap: var(--space-5);
