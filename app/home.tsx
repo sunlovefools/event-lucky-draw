@@ -11,7 +11,7 @@ import { formatParticipantName } from "@/lib/shared/participant";
 
 const DELEGATE_TUTORIAL_STEPS: TutorialStep[] = [
   {
-    title: "Welcome to the FFNM & MyBone Lucky Draw Challenge",
+    title: "Welcome to the FFNM & MyBONe Lucky Draw Challenge",
     message: "Visit each station and collect every required stamp to enter the lucky draw.",
   },
   {
@@ -55,7 +55,7 @@ export async function Home({
   return (
     <main className="shell" id="main">
       <section className="hero" aria-labelledby="home-title">
-        <h1 id="home-title">FFNM & MyBone Lucky Draw Challenge</h1>
+        <h1 id="home-title">FFNM & MyBONe Lucky Draw Challenge</h1>
         <p className="lead">Visit every station, collect your stamps, and enter the lucky draw.</p>
       </section>
 

@@ -111,4 +111,81 @@ describe("admin lucky draw display", () => {
 
     expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
   });
+
+  it("never displays the same name twice consecutively with five eligible candidates", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+    const candidates = Array.from({ length: 5 }, (_, index) => `Person ${index + 1}`);
+    const { container } = render(
+      <AdminDrawScreen
+        initialState={{ status: "waiting", winner: null }}
+        candidateNames={candidates}
+        pollMs={60_000}
+        nameDisplayDurationMs={20}
+      />,
+    );
+
+    const currentName = () =>
+      container.querySelectorAll<HTMLElement>(".lucky-draw-slot-name").item(1).textContent;
+
+    fireEvent.click(screen.getByRole("button", { name: "Draw winner" }));
+    const displayedNames = [currentName()];
+
+    for (let step = 0; step < 25; step += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20);
+      });
+      displayedNames.push(currentName());
+    }
+
+    expect(displayedNames).toHaveLength(26);
+    expect(new Set(displayedNames)).toEqual(new Set(candidates));
+    for (let index = 1; index < displayedNames.length; index += 1) {
+      expect(displayedNames[index]).not.toBe(displayedNames[index - 1]);
+    }
+  });
+
+  it("removes a revealed winner from the next draw transition", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const personFour = {
+      ...winner,
+      id: "winner-4",
+      delegateId: "delegate-4",
+      fullName: "Person 4",
+    };
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true, winner: personFour }),
+      })
+      .mockImplementationOnce(() => new Promise(() => undefined));
+    vi.stubGlobal("fetch", fetch);
+
+    render(
+      <AdminDrawScreen
+        initialState={{ status: "waiting", winner: null }}
+        candidateNames={Array.from({ length: 10 }, (_, index) => `Person ${index + 1}`)}
+        pollMs={60_000}
+        spinDurationMs={0}
+        nameDisplayDurationMs={20}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Draw winner" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText("Person 4")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Draw winner" }));
+    expect(screen.queryByText("Person 4")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(screen.queryByText("Person 4")).not.toBeInTheDocument();
+  });
 });

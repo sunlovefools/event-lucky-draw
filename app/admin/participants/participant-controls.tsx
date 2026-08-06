@@ -71,7 +71,7 @@ export function ParticipantManagementActions({ delegateCount, redirectTo }: { de
         <p className="participant-dialog__intro">Create a participant account, or update one with the same Delegate ID.</p>
         <form action={createParticipantAction} className="participant-dialog__form participant-dialog__form--grid">
           <input type="hidden" name="redirectTo" value={redirectTo} />
-          <div className="field"><label className="field-label" htmlFor="participant-registration-number">Delegate ID</label><input id="participant-registration-number" name="registrationNumber" className="input" placeholder="e.g. REG-1024" required /></div>
+          <div className="field"><label className="field-label" htmlFor="participant-registration-number">Delegate ID</label><input id="participant-registration-number" name="registrationNumber" className="input" placeholder="e.g. DLGTxxxx" required /></div>
           <div className="field"><label className="field-label" htmlFor="participant-title">Title</label><input id="participant-title" name="title" className="input" placeholder="e.g. Dr" /></div>
           <div className="field participant-dialog__full-width"><label className="field-label" htmlFor="participant-full-name">Name</label><input id="participant-full-name" name="fullName" className="input" placeholder="Jane Doe" required /></div>
           <div className="participant-dialog__actions participant-dialog__full-width"><button type="button" className="btn btn-ghost" onClick={() => addDialogRef.current?.close()}>Cancel</button><PendingSubmitButton className="btn btn-primary" pendingLabel="Saving…"><IconPlus size={17} /> Save participant</PendingSubmitButton></div>

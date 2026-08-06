@@ -30,6 +30,28 @@ describe("station management", () => {
     expect(screen.getByRole("button", { name: "Copy link for AI Booth" })).toHaveTextContent("Copied!");
   });
 
+  it("only enables saving an exhibition station after its name changes", () => {
+    const { container } = render(
+      <StationCard
+        station={{ id: "station-1", name: "AI Booth", active: true }}
+        index={0}
+        redirectTo="/admin/stations"
+      />,
+    );
+
+    expect(screen.queryByRole("checkbox", { name: /active/i })).not.toBeInTheDocument();
+    expect(container.querySelector('input[name="active"]')).toHaveAttribute("type", "hidden");
+    expect(container.querySelector('input[name="active"]')).toHaveValue("true");
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit AI Booth name" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Exhibition station name" }), {
+      target: { value: "AI Experience Booth" },
+    });
+
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+  });
+
   it("lets an authenticated admin create and edit active or disabled stations", async () => {
     const createdStations: Array<{ name: string; active: boolean }> = [];
     const updatedStations: Array<{ stationId: string; name: string; active: boolean }> = [];

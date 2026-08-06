@@ -282,7 +282,7 @@ export function DelegateRegister({ errorMessage }: { errorMessage?: string | nul
                   required
                   value={manualCode}
                   onChange={(event) => setManualCode(event.target.value)}
-                  placeholder="e.g. REG-1024"
+                  placeholder="e.g. DLGTxxxx"
                 />
               </div>
               <button type="submit" className="btn btn-primary btn-block" disabled={checking || !manualCode.trim()}>

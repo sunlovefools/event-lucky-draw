@@ -15,10 +15,12 @@ type StationCardProps = {
 
 export function StationCard({ station, index, redirectTo }: StationCardProps) {
   const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(station.name);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const nameInput = useRef<HTMLInputElement>(null);
   const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stationHref = `/station/${encodeURIComponent(station.name)}`;
+  const nameChanged = draftName !== station.name;
 
   useEffect(() => {
     if (editingName) nameInput.current?.focus();
@@ -46,15 +48,32 @@ export function StationCard({ station, index, redirectTo }: StationCardProps) {
       <form action={editStationAction} className="station-card__form">
         <input type="hidden" name="redirectTo" value={redirectTo} />
         <input type="hidden" name="stationId" value={station.id} />
+        <input type="hidden" name="active" value={String(station.active)} />
         <div className="station-card__topline">
           <div className="station-card__identity">
             <span className="station-card__icon" aria-hidden="true"><IconStore size={19} /></span>
             <div>
               <div className="station-card__title-row">
                 {editingName ? (
-                  <input ref={nameInput} id={`station-${station.id}`} name="name" className="input station-card__title-input" defaultValue={station.name} required aria-label="Exhibition station name" onBlur={() => setEditingName(false)} onKeyDown={(event) => { if (event.key === "Escape") setEditingName(false); }} />
+                  <input
+                    ref={nameInput}
+                    id={`station-${station.id}`}
+                    name="name"
+                    className="input station-card__title-input"
+                    value={draftName}
+                    required
+                    aria-label="Exhibition station name"
+                    onChange={(event) => setDraftName(event.target.value)}
+                    onBlur={() => setEditingName(false)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        setDraftName(station.name);
+                        setEditingName(false);
+                      }
+                    }}
+                  />
                 ) : (
-                  <><strong>{station.name}</strong><input type="hidden" name="name" value={station.name} /></>
+                  <><strong>{draftName}</strong><input type="hidden" name="name" value={draftName} /></>
                 )}
                 <button type="button" className="icon-btn station-card__edit-name" onClick={() => setEditingName(true)} aria-label={`Edit ${station.name} name`} title="Edit station name"><IconPencil size={15} /></button>
               </div>
@@ -66,13 +85,14 @@ export function StationCard({ station, index, redirectTo }: StationCardProps) {
           </div>
         </div>
         <div className="station-card__controls">
-          <label className="station-toggle station-toggle--compact">
-            <input type="checkbox" name="active" value="true" defaultChecked={station.active} />
-            <span className="station-toggle__track" aria-hidden="true"><span /></span>
-            <span><strong>Active</strong><small>{station.active ? "Accepting stamps" : "Currently hidden"}</small></span>
-          </label>
           <div className="station-card__actions">
-            <PendingSubmitButton className="btn btn-primary station-card__save" pendingLabel="Saving…">Save changes</PendingSubmitButton>
+            <PendingSubmitButton
+              className="btn btn-primary station-card__save"
+              pendingLabel="Saving…"
+              disabled={!nameChanged}
+            >
+              Save changes
+            </PendingSubmitButton>
             <Link href={stationHref} className="btn btn-accent station-card__open" target="_blank" rel="noreferrer">Open station page</Link>
             <button
               type="button"

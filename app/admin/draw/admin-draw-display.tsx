@@ -55,10 +55,16 @@ export function AdminDrawScreen({
   const [previousSlotName, setPreviousSlotName] = useState(IDLE_MESSAGE);
   const [drawError, setDrawError] = useState<string | null>(null);
   const [drawPending, setDrawPending] = useState(false);
+  const [drawnNames, setDrawnNames] = useState<string[]>([]);
   const visibleWinnerId = useRef<string | null>(null);
+  const lastSlotName = useRef(IDLE_MESSAGE);
   const slotTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const nameDeck = useRef<ReturnType<typeof createShuffledNameDeck> | null>(null);
   const names = useMemo(() => Array.from(new Set(candidateNames.filter(Boolean))), [candidateNames]);
+  const transitionNames = useMemo(
+    () => names.filter((name) => !drawnNames.includes(name)),
+    [drawnNames, names],
+  );
   const revealDelayMs = minRevealMs ?? spinDurationMs;
 
   function stopSlot() {
@@ -69,23 +75,36 @@ export function AdminDrawScreen({
   }
 
   function setNextSlotName(next: string) {
-    setPreviousSlotName(slotName);
+    setPreviousSlotName(lastSlotName.current);
     setSlotName(next);
+    lastSlotName.current = next;
   }
 
   function startSlot() {
     stopSlot();
     setPhase("animating");
-    nameDeck.current = createShuffledNameDeck(names.length > 0 ? names : FALLBACK_SLOT_NAMES, slotName);
-    setSlotName((current) => {
-      const next = nameDeck.current?.() ?? current;
-      setPreviousSlotName(current);
-      return next;
-    });
+    const slotNames = transitionNames.length > 0 ? transitionNames : FALLBACK_SLOT_NAMES;
+    nameDeck.current = createShuffledNameDeck(slotNames, lastSlotName.current);
+
+    function takeNextDistinctName(previous: string) {
+      const attempts = Math.max(1, slotNames.length);
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const next = nameDeck.current?.() ?? previous;
+        if (slotNames.length === 1 || next !== previous) return next;
+      }
+      return slotNames.find((name) => name !== previous) ?? previous;
+    }
+
+    const first = takeNextDistinctName(lastSlotName.current);
+    const second = takeNextDistinctName(first);
+    setPreviousSlotName(first);
+    setSlotName(second);
+    lastSlotName.current = second;
     slotTimer.current = setInterval(() => {
       setSlotName((current) => {
-        const next = nameDeck.current?.() ?? current;
+        const next = takeNextDistinctName(current);
         setPreviousSlotName(current);
+        lastSlotName.current = next;
         return next;
       });
     }, nameDisplayDurationMs);
@@ -96,6 +115,9 @@ export function AdminDrawScreen({
     setTimeout(() => {
       stopSlot();
       visibleWinnerId.current = winner.id;
+      setDrawnNames((current) =>
+        current.includes(winner.fullName) ? current : [...current, winner.fullName],
+      );
       setDrawState({ status: "winner", winner });
       setNextSlotName(winner.fullName);
       setPhase("revealed");
@@ -119,7 +141,7 @@ export function AdminDrawScreen({
     }
     const interval = setInterval(poll, pollMs);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [drawPending, phase, pollMs, revealDelayMs, nameDisplayDurationMs, names]);
+  }, [drawPending, phase, pollMs, revealDelayMs, nameDisplayDurationMs, transitionNames]);
 
   useEffect(() => () => stopSlot(), []);
 

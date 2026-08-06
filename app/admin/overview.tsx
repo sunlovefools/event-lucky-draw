@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { setParticipationAction, resetDrawRoundAction } from "@/app/admin/actions";
+import { setParticipationAction } from "@/app/admin/actions";
 import type { AdminDashboardResult } from "@/lib/admin/dashboard";
 import { getLuckyDrawPool } from "@/lib/admin/draw";
 import type { HealthStatus } from "@/lib/health";
@@ -21,8 +21,8 @@ import {
   IconWifi,
   IconClock,
   IconArrowRight,
-  IconRefresh,
 } from "@/app/admin/icons";
+import { ResetWinnersControls } from "@/app/admin/reset-winners-controls";
 
 
 export function AdminOverview({
@@ -150,10 +150,6 @@ export function AdminOverview({
           <p className="participation-banner__meta">
             {allWinners.length} winner{allWinners.length === 1 ? "" : "s"} drawn · winners stay excluded until reset
           </p>
-          <span className="badge badge-success">
-            <span className="dot" />
-            Ready
-          </span>
         </div>
         <div className="row" style={{ gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>{/*
           <form action={drawLuckyWinnerAction}>
@@ -179,10 +175,7 @@ export function AdminOverview({
         eyebrow="Latest"
         title="Recent winners"
         action={<div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-          <form action={resetDrawRoundAction}>
-            <input type="hidden" name="redirectTo" value="/admin" />
-            <PendingSubmitButton className="btn btn-danger-outline btn-sm" pendingLabel="Resetting…"><IconRefresh size={16} />Reset winners</PendingSubmitButton>
-          </form>
+          <ResetWinnersControls />
           <Link href="/admin/winners" className="icon-btn">View all<IconArrowRight size={18} /></Link>
         </div>}
       >
