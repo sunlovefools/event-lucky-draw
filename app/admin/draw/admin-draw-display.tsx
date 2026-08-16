@@ -177,8 +177,8 @@ export function AdminDrawScreen({
       <section className="lucky-draw-console">
         <h1 className="visually-hidden">Lucky Draw</h1>
         <header className="lucky-draw-header">
-          <p className="lucky-draw-kicker">1st Conjoint MOFAS ASM 2026</p>
-          <p className="lucky-draw-title">MOFAS ASM 2026 <span>Lucky Draw</span></p>
+          <p className="lucky-draw-kicker">5th FFNM x 1st MyBONe ASM 2026</p>
+          <p className="lucky-draw-title">5th FFNM x 1st MyBONe ASM 2026 <span>Lucky Draw</span></p>
         </header>
 
         <div className="lucky-draw-stage">

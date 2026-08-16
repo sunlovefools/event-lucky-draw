@@ -217,6 +217,24 @@ h3 {
 }
 .hero h1 {
   max-width: 14ch;
+  margin-inline: 0;
+  color: var(--color-primary);
+  text-align: left;
+}
+.hero-tagline {
+  margin-top: var(--space-3);
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.hero-tagline__complete {
+  color: var(--color-foreground);
+}
+.hero-tagline__collect {
+  color: var(--color-accent);
+}
+.hero-tagline__win {
+  color: var(--color-primary);
 }
 .hero .lead {
   margin-top: var(--space-3);
@@ -482,6 +500,12 @@ h3 {
 .list-item-title {
   font-weight: 600;
 }
+.vendor-scan-history-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
 .empty {
   color: var(--color-muted);
   font-style: italic;
@@ -660,6 +684,23 @@ h3 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
+  margin-bottom: 0.5rem;
+}
+.delegate-welcome-title {
+  display: block;
+}
+.delegate-welcome-label {
+  display: block;
+}
+.delegate-identity {
+  display: block;
+  margin-top: 0.1rem;
+}
+.delegate-title {
+  white-space: nowrap;
+}
+.delegate-full-name {
+  overflow-wrap: anywhere;
 }
 .delegate-welcome-actions {
   align-items: flex-end;
@@ -1766,7 +1807,7 @@ dl.health dd {
 .lucky-draw-header, .lucky-draw-stage, .lucky-draw-status, .lucky-draw-button { position: relative; z-index: 1; }
 .lucky-draw-kicker { display: flex; align-items: center; justify-content: center; gap: 14px; color: var(--draw-cyan); font-size: clamp(.6rem, 1vw, .78rem); font-weight: 800; letter-spacing: .32em; text-transform: uppercase; }
 .lucky-draw-kicker::before, .lucky-draw-kicker::after { width: clamp(24px, 4vw, 48px); height: 1px; content: ""; background: linear-gradient(90deg, transparent, var(--draw-cyan)); box-shadow: 0 0 16px rgb(0 240 255 / 40%); }.lucky-draw-kicker::after { background: linear-gradient(90deg, var(--draw-cyan), transparent); }
-.lucky-draw-title { margin: 12px 0 0; font-size: clamp(2.6rem, 6.2vw, 6.2rem); font-weight: 900; letter-spacing: -.06em; line-height: .92; }.lucky-draw-title span { display: block; background: linear-gradient(135deg, var(--draw-cyan), var(--draw-violet), var(--draw-pink)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 30px rgb(0 240 255 / 20%)); }
+.lucky-draw-title { margin: 12px 0 0; font-size: clamp(2.2rem, 5vw, 5rem); font-weight: 900; letter-spacing: -.06em; line-height: .92; white-space: nowrap; }.lucky-draw-title span { display: block; background: linear-gradient(135deg, var(--draw-cyan), var(--draw-violet), var(--draw-pink)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 30px rgb(0 240 255 / 20%)); }
 .lucky-draw-stage { width: 100%; max-width: 1380px; margin: clamp(28px, 4vh, 48px) auto 0; }.lucky-draw-winner-label { margin: 0 0 20px; color: #fff; font-size: clamp(1.4rem, 3.2vw, 2.8rem); font-weight: 900; letter-spacing: -.03em; text-shadow: 0 0 30px rgb(0 240 255 / 15%); transition: color .5s, transform .5s; }
 .lucky-draw-slot-machine { padding: 4px; overflow: hidden; border-radius: clamp(52px, 7vw, 96px); background: linear-gradient(90deg, var(--draw-cyan), var(--draw-violet), var(--draw-pink), var(--draw-cyan)); background-size: 300% 100%; animation: draw-border-flow 3.6s linear infinite; box-shadow: 0 0 60px rgb(0 240 255 / 12%), 0 0 120px rgb(123 47 252 / 8%); }.lucky-draw-slot-window { height: clamp(190px, 18vw, 260px); overflow: hidden; border-radius: inherit; background: rgb(2 2 12 / 95%); box-shadow: inset 0 0 60px rgb(0 240 255 / 5%); }.lucky-draw-slot-track { transform: translateY(-50%); transition: transform .45s cubic-bezier(.2,.9,.2,1); }.lucky-draw-slot-track.is-spinning { transition-duration: .06s; }.lucky-draw-slot-name { display: grid; height: clamp(190px, 18vw, 260px); place-items: center; padding: 20px clamp(24px, 4vw, 64px); overflow: hidden; color: #fff; font-size: clamp(1.8rem, 5vw, 4.4rem); font-weight: 900; letter-spacing: -.04em; line-height: 1.05; overflow-wrap: anywhere; text-wrap: balance; text-shadow: 0 0 30px rgb(0 240 255 / 15%); white-space: normal; }
 .lucky-draw-indicators { display: flex; justify-content: center; gap: 10px; height: 12px; margin-top: 18px; }.lucky-draw-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(255 255 255 / 8%); transition: .2s; }.lucky-draw-dot.is-active { background: var(--draw-cyan); box-shadow: 0 0 20px rgb(0 240 255 / 60%); transform: scale(1.3); }.lucky-draw-dot:nth-child(3n).is-active { background: var(--draw-pink); box-shadow: 0 0 20px rgb(255 0 229 / 60%); }
@@ -1774,7 +1815,7 @@ dl.health dd {
 .lucky-draw-screen--revealed .lucky-draw-winner-label { color: var(--draw-gold); transform: scale(1.06); text-shadow: 0 0 30px rgb(244 203 114 / 30%), 0 0 60px rgb(0 240 255 / 15%); }.lucky-draw-screen--revealed .lucky-draw-slot-machine { animation-duration: 1.8s; box-shadow: 0 0 80px rgb(244 203 114 / 15%), 0 0 160px rgb(0 240 255 / 8%); }.lucky-draw-screen--revealed .lucky-draw-slot-name { text-shadow: 0 0 40px rgb(244 203 114 / 30%); }
 .draw-confetti { position: fixed; z-index: 10; inset: 0; pointer-events: none; overflow: hidden; }.draw-confetti i { position: absolute; top: -8vh; left: var(--x); color: var(--draw-cyan); font-size: 20px; font-style: normal; animation: draw-confetti-fall var(--duration) var(--delay) cubic-bezier(.12,.75,.25,1) forwards; }.draw-confetti i:nth-child(6n+2) { color: var(--draw-pink); }.draw-confetti i:nth-child(6n+3) { color: var(--draw-violet); }.draw-confetti i:nth-child(6n+4) { color: var(--draw-gold); }
 @keyframes draw-grid-scan { to { background-position: 0 128px,128px 0; } } @keyframes draw-orb-drift { to { transform: translate(4vw,3vh) scale(1.08); } } @keyframes draw-spin-ring { to { transform: rotate(360deg); } } @keyframes draw-sweep { 0%,60% { transform: translateX(-120%); } 85%,100% { transform: translateX(120%); } } @keyframes draw-border-flow { to { background-position: 300% 0; } } @keyframes draw-button-pulse { to { transform: translateY(-2px) scale(1.02); box-shadow: 0 20px 60px rgb(0 240 255 / 35%); } } @keyframes draw-confetti-fall { to { transform: translate(var(--drift),112vh) rotate(var(--spin)); opacity: .06; } }
-@media (max-width: 720px) { .lucky-draw-screen { padding: .5rem; }.lucky-draw-console { width: 100%; min-height: calc(100vh - 1rem); padding: 2rem 1rem 1.75rem; border-radius: 24px; }.lucky-draw-slot-window, .lucky-draw-slot-name { height: clamp(150px, 42vw, 200px); }.lucky-draw-slot-name { padding: 14px 18px; font-size: clamp(1.2rem, 5vw, 2.4rem); }.lucky-draw-button { min-width: 180px; padding: 14px 28px; font-size: .8rem; } }
+@media (max-width: 720px) { .lucky-draw-screen { padding: .5rem; }.lucky-draw-console { width: 100%; min-height: calc(100vh - 1rem); padding: 2rem 1rem 1.75rem; border-radius: 24px; }.lucky-draw-title { white-space: normal; }.lucky-draw-slot-window, .lucky-draw-slot-name { height: clamp(150px, 42vw, 200px); }.lucky-draw-slot-name { padding: 14px 18px; font-size: clamp(1.2rem, 5vw, 2.4rem); }.lucky-draw-button { min-width: 180px; padding: 14px 28px; font-size: .8rem; } }
 
     /* ============================================================ SCAN RESULT DIALOG */
     .scan-result-dialog {

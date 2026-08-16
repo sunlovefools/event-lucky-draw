@@ -11,34 +11,34 @@ import { formatParticipantName } from "@/lib/shared/participant";
 
 const DELEGATE_TUTORIAL_STEPS: TutorialStep[] = [
   {
-    title: "Welcome to the FFNM & MyBONe Lucky Draw Challenge",
-    message: "Visit each station and collect every required stamp to enter the lucky draw.",
+    title: "Welcome to the 5th FFNM & 1st MyBONe ASM Lucky Draw Challenge",
+    message: "Visit each booth and collect every required stamp to enter the lucky draw.",
   },
   {
-    title: "Visit the Stations",
-    message: "Visit the station and complete its activity. The station will then award you the stamp by scanning your conference badge QR.",
+    title: "Visit Each Booth",
+    message: "Complete the activity at each booth. Once completed, the exhibitor will scan the QR code on your conference badge to award your stamp.",
     target: "[data-tutorial='delegate-station']",
   },
   {
-    title: "Check your New Stamp",
-    message: "After the vendor scans your QR code, tap Refresh Progress to update your stamps.",
+    title: "Check Your New Stamp",
+    message: "After the exhibitor scans your badge QR code, tap Refresh Progress to view your newly collected stamp.",
     target: "[data-tutorial-demo='stamp']",
     effect: "delegate-refresh-demo",
   },
   {
-    title: "The Final Survey Station is Locked",
-    message: "Collect all other station stamps first, then you will unlock the Final Survey Station.",
+    title: "Complete All Exhibition Booths to Unlock the Final Survey",
+    message: "Collect all your station stamps to unlock the Final Survey Station and complete the challenge.",
     target: "[data-tutorial='delegate-final-station']",
   },
   {
-    title: "You're in the Lucky Draw!",
-    message: "Once you receive the Final Survey Station stamp, your lucky draw entry is confirmed.",
+    title: "You’re Officially in the Lucky Draw! 🎉",
+    message: "Complete the Final Survey and collect your final stamp to confirm your lucky draw entry.",
     target: "[data-tutorial='delegate-status']",
     effect: "delegate-entry-demo",
   },
   {
-    title: "Good Luck!",
-    message: "Keep this page available in case the event team needs to verify your lucky draw entry.",
+    title: "Good Luck!🎉",
+    message: "Your lucky draw entry is complete! Keep this page handy for verification by the event team, if required.",
   },
 ];
 
@@ -55,8 +55,13 @@ export async function Home({
   return (
     <main className="shell" id="main">
       <section className="hero" aria-labelledby="home-title">
-        <h1 id="home-title">FFNM & MyBONe Lucky Draw Challenge</h1>
-        <p className="lead">Visit every station, collect your stamps, and enter the lucky draw.</p>
+        <h1 id="home-title">5th FFNM & 1st MyBONe ASM 2026 Lucky Draw Challenge</h1>
+        <p className="hero-tagline">
+          <span className="hero-tagline__complete">Complete.</span>{" "}
+          <span className="hero-tagline__collect">Collect.</span>{" "}
+          <span className="hero-tagline__win">Win!</span>
+        </p>
+        <p className="lead">Visit every booth, collect all your stamps, and unlock your chance to win exciting prizes!</p>
       </section>
 
       {delegateHome.identified ? (
@@ -84,7 +89,13 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
         <div className="section-head delegate-welcome-head">
           <div>
             <p className="eyebrow">Welcome back</p>
-            <h2 id="welcome-title">Welcome {delegateDisplayName}!</h2>
+            <h2 id="welcome-title" className="delegate-welcome-title">
+              <span className="delegate-welcome-label">Welcome</span>
+              <span className="delegate-identity">
+                {delegate.title?.trim() ? <><span className="delegate-title">{delegate.title.trim()}</span>{" "}</> : null}
+                <span className="delegate-full-name">{delegate.fullName}!</span>
+              </span>
+            </h2>
           </div>
           <div className="head-actions delegate-welcome-actions">
             <GuidedTutorial id="delegate-page" steps={DELEGATE_TUTORIAL_STEPS} launcherClassName="tutorial-launcher--delegate" version={5} />
@@ -141,9 +152,9 @@ function DelegateView({ delegateHome }: { delegateHome: Extract<DelegateHomeResu
       ) : (
         <section className="card center delegate-status-card" aria-labelledby="need-stamps-title" data-tutorial="delegate-status">
           <p className="eyebrow">Not yet entered</p>
-          <h2 id="need-stamps-title">Get all the stamps to enter the lucky draw!</h2>
+          <h2 id="need-stamps-title">Complete Your Stamps to Enter the Lucky Draw!</h2>
           <p className="lead" style={{ margin: "0.5rem auto 0" }}>
-            Collect every stamp above to unlock the Final Survey Station and complete your entry.
+            Collect all required stamps to unlock the Final Survey Station and complete your lucky draw entry.
           </p>
         </section>
       )}

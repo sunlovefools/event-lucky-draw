@@ -139,9 +139,9 @@ export function DelegateStamps({ delegateId, stations }: DelegateStampsProps) {
             <LockIcon />
           </span>
           <div>
-            <strong>{lockedStation.name} is locked</strong>
+            <strong>{lockedStation.name} is Locked</strong>
             <p>
-              Collect every other station stamp first. Complete {remainingRegularStations} more {remainingRegularStations === 1 ? "station" : "stations"} to unlock.
+              Collect all remaining station stamps to unlock the Final Survey Station. {remainingRegularStations} more {remainingRegularStations === 1 ? "station" : "stations"} to go!.
             </p>
           </div>
         </aside>

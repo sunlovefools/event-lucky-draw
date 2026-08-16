@@ -11,28 +11,28 @@ import { STATION_SCAN_HISTORY_LIMIT } from "@/lib/vendor/config";
 
 const VENDOR_TUTORIAL_STEPS: TutorialStep[] = [
   {
-    title: "Welcome to your vendor Stamp Page",
-    message: "Scan a delegate's conference badge QR code here to award your station stamp after the delegate has completed your station activity or survey.",
+    title: "Welcome to Your Vendor Stamp Page",
+    message: "Scan the QR code on the delegate’s conference badge to award your station stamp after they have completed your activity or survey.",
     target: "[data-tutorial='vendor-welcome']",
   },
   {
-    title: "Check Before Scanning",
-    message: "Please ensure that the delegate has completed your activity and that any required consent or information has been recorded before you scan their QR code.",
+    title: "Before You Scan",
+    message: "Please confirm that the delegate has completed your activity or survey and that all required information or consent has been recorded before scanning their QR code.",
   },
   {
     title: "Scan or Enter the Delegate Code",
-    message: "Scan the QR code on the delegate's conference badge. Their delegate code appears beneath the QR code in the format “DLGTxxxx”; choose Type code if you need to enter it manually.",
+    message: "Scan the QR code on the delegate’s conference badge. Alternatively, enter the delegate code shown below the QR code (e.g. DLGTxxxx) by selecting “Type Code”.",
     target: "[data-tutorial='vendor-scan']",
   },
   {
     title: "Scan Successful",
-    message: "A successful-scan message confirms that the stamp was awarded. Ask the delegate to press Refresh Progress on their page to refresh their stamps.",
+    message: "The delegate’s stamp has been successfully awarded. Ask the delegate to select “Refresh Progress” on their page to view their newly added stamp.",
     target: "[data-tutorial='vendor-success-demo']",
     effect: "vendor-success-demo",
   },
   {
-    title: "Review Recent Scan Records",
-    message: "Use Recent station scans to review the delegates successfully scanned at this station and when each scan was recorded.",
+    title: "View Recent Scans",
+    message: "View Recent Station Scans to check which delegates have been successfully scanned and the time each scan was recorded.",
     target: "[data-tutorial='vendor-history']",
   },
   {
@@ -82,7 +82,7 @@ function ActiveVendorPortal({
             <GuidedTutorial id="vendor-page" steps={VENDOR_TUTORIAL_STEPS} version={2} />
           </div>
         </div>
-        <p className="lead">Use this station link to stamp delegates.</p>
+        <p className="lead">Use this station link to stamp participating delegates.</p>
         {errorMessage ? <p className="alert alert-danger" role="alert" style={{ marginTop: "1rem" }}>{errorMessage}</p> : null}
       </section>
 
@@ -102,7 +102,7 @@ function ActiveVendorPortal({
           </span>
           <div>
             <strong>Scan successful</strong>
-            <p>Stamp awarded. Ask the delegate to press Refresh Progress to see their new stamp.</p>
+            <p>The delegate’s stamp has been successfully awarded. Ask the delegate to select “Refresh Progress” on their page to view their newly added stamp.</p>
           </div>
         </div>
         <VendorScanner participationOpen={participationOpen} stationName={station.name} onHistoryEntry={addHistoryEntry} />
@@ -122,7 +122,7 @@ function ActiveVendorPortal({
           <ul className="list">
             {visibleHistory.map((scan) => (
               <li key={scan.id} className="list-item">
-                <div className="row-between">
+                <div className="vendor-scan-history-entry">
                   <span className="list-item-title">{scan.delegateFullName}</span>
                   <span className="muted nowrap">{formatTime(scan.collectedAt)}</span>
                 </div>

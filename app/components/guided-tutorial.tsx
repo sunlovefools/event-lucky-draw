@@ -143,8 +143,10 @@ export function GuidedTutorial({ id, steps, label = "How To", launcherClassName 
     }
 
     measureTarget();
+    const measureFrame = window.requestAnimationFrame(measureTarget);
     const focusTimer = window.setTimeout(() => titleRef.current?.focus(), 0);
     return () => {
+      window.cancelAnimationFrame(measureFrame);
       window.clearTimeout(focusTimer);
       if (step?.effect && document.body.dataset.tutorialEffect === step.effect) {
         delete document.body.dataset.tutorialEffect;
