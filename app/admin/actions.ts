@@ -10,7 +10,7 @@ import {
   type AdminSessionStore,
   SupabaseAdminAuthStore,
 } from "@/lib/auth/admin-auth";
-import { createStation, editStation, SupabaseStationsStore } from "@/lib/admin/stations";
+import { createStation, editStation, reorderStations, SupabaseStationsStore } from "@/lib/admin/stations";
 import { createVendorAccount, editVendorAccount, SupabaseVendorsStore } from "@/lib/admin/vendors";
 import { SupabaseVendorAuthStore } from "@/lib/auth/vendor-auth";
 import {
@@ -137,6 +137,9 @@ export async function saveDrawSettingsAction(formData: FormData) {
 export async function editStationAction(formData: FormData) {
   const target = resolveRedirect(formData);
   const store = new SupabaseStationsStore();
+  const rawOrder = formData.get("displayOrder");
+  const displayOrder = rawOrder === null || rawOrder === "" ? undefined : Number(rawOrder);
+
   const result = await withAdminSession(store, (sessionId) =>
     editStation({
       store,
@@ -144,7 +147,36 @@ export async function editStationAction(formData: FormData) {
       stationId: String(formData.get("stationId") ?? ""),
       name: String(formData.get("name") ?? ""),
       active: formData.get("active") === "true",
+      displayOrder,
     }),
+  );
+
+  if (!result.ok) {
+    redirect(`/admin?error=${result.error === "Admin login required." ? "login-required" : "station-invalid"}`);
+  }
+
+  redirect(target);
+}
+
+export async function reorderStationsAction(formData: FormData) {
+  const target = resolveRedirect(formData);
+  const rawStationOrder = String(formData.get("stationOrder") ?? "");
+  let orderedStationIds: string[] = [];
+
+  if (rawStationOrder) {
+    try {
+      const parsed = JSON.parse(rawStationOrder);
+      if (Array.isArray(parsed)) {
+        orderedStationIds = parsed.filter((stationId): stationId is string => typeof stationId === "string");
+      }
+    } catch {
+      orderedStationIds = [];
+    }
+  }
+
+  const store = new SupabaseStationsStore();
+  const result = await withAdminSession(store, (sessionId) =>
+    reorderStations({ store, sessionId, orderedStationIds }),
   );
 
   if (!result.ok) {
@@ -342,6 +374,7 @@ export async function createStationAction(formData: FormData) {
       sessionId,
       name: String(formData.get("name") ?? ""),
       active: formData.get("active") === "true",
+      displayOrder: undefined,
     }),
   );
 

@@ -8,7 +8,7 @@ import { IconCheck, IconCopy, IconPencil, IconStore } from "@/app/admin/icons";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 
 type StationCardProps = {
-  station: { id: string; name: string; active: boolean };
+  station: { id: string; name: string; active: boolean; displayOrder?: number };
   index: number;
   redirectTo: string;
 };
@@ -20,11 +20,15 @@ export function StationCard({ station, index, redirectTo }: StationCardProps) {
   const nameInput = useRef<HTMLInputElement>(null);
   const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stationHref = `/station/${encodeURIComponent(station.name)}`;
-  const nameChanged = draftName !== station.name;
+  const nameChanged = draftName.trim() !== station.name && draftName.trim().length > 0;
 
   useEffect(() => {
     if (editingName) nameInput.current?.focus();
   }, [editingName]);
+
+  useEffect(() => {
+    setDraftName(station.name);
+  }, [station.name]);
 
   useEffect(() => () => {
     if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
@@ -44,14 +48,19 @@ export function StationCard({ station, index, redirectTo }: StationCardProps) {
 
   return (
     <article className="station-card">
-      <div className="station-card__number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</div>
+      <div className="station-card__number" aria-hidden="true">
+        {String(index + 1).padStart(2, "0")}
+      </div>
       <form action={editStationAction} className="station-card__form">
         <input type="hidden" name="redirectTo" value={redirectTo} />
         <input type="hidden" name="stationId" value={station.id} />
         <input type="hidden" name="active" value={String(station.active)} />
+
         <div className="station-card__topline">
           <div className="station-card__identity">
-            <span className="station-card__icon" aria-hidden="true"><IconStore size={19} /></span>
+            <span className="station-card__icon" aria-hidden="true">
+              <IconStore size={19} />
+            </span>
             <div>
               <div className="station-card__title-row">
                 {editingName ? (
@@ -64,7 +73,10 @@ export function StationCard({ station, index, redirectTo }: StationCardProps) {
                     required
                     aria-label="Exhibition station name"
                     onChange={(event) => setDraftName(event.target.value)}
-                    onBlur={() => setEditingName(false)}
+                    onBlur={() => {
+                      if (!draftName.trim()) setDraftName(station.name);
+                      setEditingName(false);
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === "Escape") {
                         setDraftName(station.name);
@@ -73,17 +85,32 @@ export function StationCard({ station, index, redirectTo }: StationCardProps) {
                     }}
                   />
                 ) : (
-                  <><strong>{draftName}</strong><input type="hidden" name="name" value={draftName} /></>
+                  <>
+                    <strong className="station-card__name">{draftName}</strong>
+                    <input type="hidden" name="name" value={draftName} />
+                  </>
                 )}
-                <button type="button" className="icon-btn station-card__edit-name" onClick={() => setEditingName(true)} aria-label={`Edit ${station.name} name`} title="Edit station name"><IconPencil size={15} /></button>
+                <button
+                  type="button"
+                  className="icon-btn station-card__edit-name"
+                  onClick={() => setEditingName(true)}
+                  aria-label={`Edit ${station.name} name`}
+                  title="Edit station name"
+                >
+                  <IconPencil size={15} />
+                </button>
               </div>
-              <span>Exhibition station</span>
+              <span className="station-card__subtitle">Exhibition station</span>
             </div>
           </div>
           <div className="station-card__badges">
-            <span className={`badge ${station.active ? "badge-success" : "badge-neutral"}`}><span className="station-status-dot" aria-hidden="true" />{station.active ? "Active" : "Inactive"}</span>
+            <span className={`badge ${station.active ? "badge-success" : "badge-neutral"}`}>
+              <span className="station-status-dot" aria-hidden="true" />
+              {station.active ? "Active" : "Inactive"}
+            </span>
           </div>
         </div>
+
         <div className="station-card__controls">
           <div className="station-card__actions">
             <PendingSubmitButton
@@ -93,7 +120,14 @@ export function StationCard({ station, index, redirectTo }: StationCardProps) {
             >
               Save changes
             </PendingSubmitButton>
-            <Link href={stationHref} className="btn btn-accent station-card__open" target="_blank" rel="noreferrer">Open station page</Link>
+            <Link
+              href={stationHref}
+              className="btn btn-accent station-card__open"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open station page
+            </Link>
             <button
               type="button"
               className={`station-card__copy ${copyState === "copied" ? "is-copied" : ""} ${copyState === "error" ? "is-error" : ""}`}

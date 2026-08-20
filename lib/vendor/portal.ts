@@ -317,9 +317,9 @@ export class SupabaseVendorStore implements VendorPortalStore {
   async findStationByName(stationName: string): Promise<Station | null> {
     const { data, error } = await this.supabase
       .from("stations")
-      .select("id, name, active")
+      .select("id, name, active, display_order")
       .eq("name", stationName)
-      .maybeSingle<{ id: string; name: string; active: boolean }>();
+      .maybeSingle<{ id: string; name: string; active: boolean; display_order: number }>();
 
     if (error) {
       throw new Error(error.message);
@@ -331,7 +331,7 @@ export class SupabaseVendorStore implements VendorPortalStore {
   async listActiveStations(): Promise<Station[]> {
     const { data, error } = await this.supabase
       .from("stations")
-      .select("id, name, active")
+      .select("id, name, active, display_order")
       .eq("active", true);
 
     if (error) {

@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { AdminDashboard } from "@/app/admin/admin-dashboard";
 import { FinalSurveyStationLink } from "@/app/admin/stations/final-survey-station-link";
+import { ReorderStationsModal } from "@/app/admin/stations/reorder-stations-modal";
 import { StationCard } from "@/app/admin/stations/station-card";
 import { createStation, editStation } from "@/lib/admin/stations";
 import { createStore } from "./test-stores";
@@ -28,6 +29,60 @@ describe("station management", () => {
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("http://localhost:3000/station/AI%20Booth"));
     expect(screen.getByRole("button", { name: "Copy link for AI Booth" })).toHaveTextContent("Copied!");
+  });
+
+  it("provides a centralised button and modal for reordering vendor positions without cluttering individual cards", () => {
+    render(
+      <>
+        <ReorderStationsModal
+          redirectTo="/admin/stations"
+          activeStations={[
+            { id: "station-1", name: "AI Booth", active: true, displayOrder: 1 },
+            { id: "station-2", name: "Cloud Booth", active: true, displayOrder: 2 },
+          ]}
+        />
+        <StationCard
+          station={{ id: "station-1", name: "AI Booth", active: true, displayOrder: 1 }}
+          index={0}
+          redirectTo="/admin/stations"
+        />
+      </>,
+    );
+
+    // Centralized button exists
+    expect(screen.getByRole("button", { name: "Changing Vendor Position" })).toBeInTheDocument();
+    expect(screen.getByText("Change Vendor Position")).toBeInTheDocument();
+
+    // Individual cards do NOT have duplicate vendor position buttons or spin inputs
+    expect(screen.queryByText("This controls the stamp order on the participant page.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: /vendor position/i })).not.toBeInTheDocument();
+  });
+
+  it("allows reordering stations using move up/down arrow buttons in the modal", () => {
+    const { container } = render(
+      <ReorderStationsModal
+        redirectTo="/admin/stations"
+        activeStations={[
+          { id: "station-1", name: "AI Booth", active: true, displayOrder: 1 },
+          { id: "station-2", name: "Cloud Booth", active: true, displayOrder: 2 },
+          { id: "station-3", name: "DevOps Booth", active: true, displayOrder: 3 },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Changing Vendor Position" }));
+
+    // Verify initial order in hidden input
+    const orderInput = container.querySelector('input[name="stationOrder"]');
+    expect(orderInput).toHaveValue(JSON.stringify(["station-1", "station-2", "station-3"]));
+
+    // Move Cloud Booth down
+    fireEvent.click(screen.getByRole("button", { name: "Move Cloud Booth down" }));
+    expect(orderInput).toHaveValue(JSON.stringify(["station-1", "station-3", "station-2"]));
+
+    // Move DevOps Booth up
+    fireEvent.click(screen.getByRole("button", { name: "Move DevOps Booth up" }));
+    expect(orderInput).toHaveValue(JSON.stringify(["station-3", "station-1", "station-2"]));
   });
 
   it("only enables saving an exhibition station after its name changes", () => {

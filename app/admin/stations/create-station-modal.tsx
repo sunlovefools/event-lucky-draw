@@ -37,6 +37,8 @@ export function CreateStationModal({ redirectTo }: { redirectTo: string }) {
             <p className="hint">Use a name that participants and station staff can recognise immediately.</p>
           </div>
 
+          <p className="hint">The new station will be placed after the existing stations. You can change its vendor position after creating it.</p>
+
           <label className="station-toggle">
             <input type="checkbox" name="active" value="true" defaultChecked />
             <span className="station-toggle__track" aria-hidden="true"><span /></span>

@@ -25,6 +25,7 @@ export type ProgressStation = {
 export type ActiveStation = {
   id: string;
   name: string;
+  displayOrder?: number;
 };
 
 export type DelegateProgress = {
@@ -182,7 +183,7 @@ export async function getDelegateHome({
     return { identified: false };
   }
 
-  const activeStations = snapshot.stations.map(({ id, name }) => ({ id, name }));
+  const activeStations = snapshot.stations;
   const stampedStationIdSet = new Set(snapshot.stations.filter((station) => station.completed).map((station) => station.id));
   const displayStations = sortStationsWithFinalSurveyLast(activeStations);
   const finalSurveyStation = displayStations.find((station) => isFinalSurveyStationName(station.name));
@@ -237,6 +238,7 @@ type DelegateHomeProgressRow = {
   draw_status: string;
   station_id: string | null;
   station_name: string | null;
+  station_display_order: number | null;
   station_completed: boolean;
 };
 
@@ -309,7 +311,7 @@ export class SupabaseDelegateStore implements DelegateStore {
         full_name: first.full_name,
       }),
       stations: rows.flatMap((row) => row.station_id && row.station_name
-        ? [{ id: row.station_id, name: row.station_name, completed: row.station_completed }]
+        ? [{ id: row.station_id, name: row.station_name, displayOrder: row.station_display_order ?? undefined, completed: row.station_completed }]
         : []),
       finalSurveyStatus: {
         // The form-based survey was retired. Completion is represented by the

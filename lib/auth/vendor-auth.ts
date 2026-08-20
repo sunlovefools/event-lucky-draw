@@ -104,12 +104,14 @@ export async function authenticateVendor({
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
 
+type VendorStationRow = { id: string; name: string; active: boolean; display_order: number };
+
 type VendorAccountRow = {
   id: string;
   username: string;
   password_hash: string;
   password_salt: string;
-  stations?: { id: string; name: string; active: boolean } | { id: string; name: string; active: boolean }[] | null;
+  stations?: VendorStationRow | VendorStationRow[] | null;
 };
 
 type VendorSessionRow = {
@@ -117,23 +119,23 @@ type VendorSessionRow = {
   vendor_accounts?: {
     id: string;
     username: string;
-    stations?: { id: string; name: string; active: boolean } | { id: string; name: string; active: boolean }[] | null;
+    stations?: VendorStationRow | VendorStationRow[] | null;
   } | Array<{
     id: string;
     username: string;
-    stations?: { id: string; name: string; active: boolean } | { id: string; name: string; active: boolean }[] | null;
+    stations?: VendorStationRow | VendorStationRow[] | null;
   }> | null;
 };
 
 function stationFromJoin(
-  station: { id: string; name: string; active: boolean } | { id: string; name: string; active: boolean }[] | null | undefined,
+  station: VendorStationRow | VendorStationRow[] | null | undefined,
 ): VendorStation {
   const row = Array.isArray(station) ? station[0] : station;
   if (!row) {
     throw new Error("Station login is missing an assigned exhibition station.");
   }
 
-  return { id: row.id, name: row.name, active: row.active };
+  return { id: row.id, name: row.name, active: row.active, displayOrder: row.display_order };
 }
 
 export class SupabaseVendorAuthStore implements VendorAuthStore {
@@ -142,7 +144,7 @@ export class SupabaseVendorAuthStore implements VendorAuthStore {
   async findActiveVendorByUsername(username: string): Promise<VendorAccount | null> {
     const { data, error } = await this.supabase
       .from("vendor_accounts")
-      .select("id, username, password_hash, password_salt, stations!inner(id, name, active)")
+      .select("id, username, password_hash, password_salt, stations!inner(id, name, active, display_order)")
       .eq("username", username)
       .eq("active", true)
       .maybeSingle<VendorAccountRow>();
@@ -182,7 +184,7 @@ export class SupabaseVendorAuthStore implements VendorAuthStore {
   async findValidVendorSession(sessionId: string, nowIso: string): Promise<ValidVendorSession | null> {
     const { data, error } = await this.supabase
       .from("vendor_sessions")
-      .select("id, vendor_accounts!inner(id, username, stations!inner(id, name, active))")
+      .select("id, vendor_accounts!inner(id, username, stations!inner(id, name, active, display_order))")
       .eq("id", sessionId)
       .gt("expires_at", nowIso)
       .maybeSingle<VendorSessionRow>();

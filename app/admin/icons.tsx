@@ -422,3 +422,36 @@ export function IconList(p: IconProps) {
     </Svg>
   );
 }
+
+export function IconChevronUp(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <polyline points="18 15 12 9 6 15" />
+    </Svg>
+  );
+}
+
+export function IconGripVertical(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="9" cy="5" r="1" />
+      <circle cx="9" cy="19" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="15" cy="5" r="1" />
+      <circle cx="15" cy="19" r="1" />
+    </Svg>
+  );
+}
+
+export function IconArrowUpDown(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m21 16-4 4-4-4" />
+      <path d="M17 20V4" />
+      <path d="m3 8 4-4 4 4" />
+      <path d="M7 4v16" />
+    </Svg>
+  );
+}
+

@@ -13,6 +13,7 @@ export type StationsStore = AdminSessionStore & {
 type StationInput = {
   name: string;
   active: boolean;
+  displayOrder?: number;
 };
 
 function validateStationName(name: string) {
@@ -29,12 +30,14 @@ export async function createStation({
   sessionId,
   name,
   active,
+  displayOrder,
   now = () => new Date(),
 }: {
   store: StationsStore;
   sessionId?: string | null;
   name: string;
   active: boolean;
+  displayOrder?: number;
   now?: () => Date;
 }): Promise<{ ok: true; station: Station } | { ok: false; error: string }> {
   const session = await requireAdminSession({ store, sessionId, nowIso: now().toISOString() });
@@ -51,7 +54,7 @@ export async function createStation({
     return { ok: false, error: "The Final Survey Station is created automatically." };
   }
 
-  return { ok: true, station: await store.createStation({ name: validName.name, active }) };
+  return { ok: true, station: await store.createStation({ name: validName.name, active, displayOrder }) };
 }
 
 export async function editStation({
@@ -60,6 +63,7 @@ export async function editStation({
   stationId,
   name,
   active,
+  displayOrder,
   now = () => new Date(),
 }: {
   store: StationsStore;
@@ -67,6 +71,7 @@ export async function editStation({
   stationId: string;
   name: string;
   active: boolean;
+  displayOrder?: number;
   now?: () => Date;
 }): Promise<{ ok: true; station: Station } | { ok: false; error: string }> {
   const session = await requireAdminSession({ store, sessionId, nowIso: now().toISOString() });
@@ -97,10 +102,78 @@ export async function editStation({
     return { ok: false, error: "That name is reserved for the Final Survey Station." };
   }
 
+  if (displayOrder !== undefined) {
+    if (!Number.isInteger(displayOrder) || displayOrder < 1) {
+      return { ok: false, error: "Vendor position must be a positive whole number." };
+    }
+  }
+
   return {
     ok: true,
-    station: await store.updateStation(normalizedStationId, { name: validName.name, active }),
+    station: await store.updateStation(normalizedStationId, {
+      name: validName.name,
+      active,
+      ...(displayOrder === undefined ? {} : { displayOrder }),
+    }),
   };
+}
+
+export async function reorderStations({
+  store,
+  sessionId,
+  orderedStationIds,
+  now = () => new Date(),
+}: {
+  store: StationsStore;
+  sessionId?: string | null;
+  orderedStationIds: string[];
+  now?: () => Date;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireAdminSession({ store, sessionId, nowIso: now().toISOString() });
+  if (!session) {
+    return { ok: false, error: "Admin login required." };
+  }
+
+  const normalizedIds = orderedStationIds
+    .map((stationId) => normalizeStationId(String(stationId)))
+    .filter((stationId): stationId is string => Boolean(stationId));
+
+  if (normalizedIds.length === 0) {
+    return { ok: false, error: "Choose at least one active booth for the vendor order." };
+  }
+
+  const uniqueIds = new Set(normalizedIds);
+  if (uniqueIds.size !== normalizedIds.length) {
+    return { ok: false, error: "Each active booth can only appear once in the vendor order." };
+  }
+
+  const allStations = await store.listStations();
+  const activeStations = allStations.filter((station) => station.active && !isFinalSurveyStationName(station.name));
+
+  if (normalizedIds.length !== activeStations.length) {
+    return { ok: false, error: "All active booths must be included to update their positions." };
+  }
+
+  const activeById = new Map(activeStations.map((station) => [station.id, station]));
+
+  for (const [positionIndex, stationId] of normalizedIds.entries()) {
+    const station = activeById.get(stationId);
+    if (!station) {
+      return { ok: false, error: "One or more active booths were not found." };
+    }
+
+    const result = await store.updateStation(stationId, {
+      name: station.name,
+      active: station.active,
+      displayOrder: positionIndex + 1,
+    });
+
+    if (!result) {
+      return { ok: false, error: "Unable to update the booth order." };
+    }
+  }
+
+  return { ok: true };
 }
 
 type SupabaseClientLike = ReturnType<typeof createSupabaseBrowserClient>;
@@ -109,6 +182,7 @@ type StationRow = {
   id: string;
   name: string;
   active: boolean;
+  display_order: number;
 };
 
 export class SupabaseStationsStore implements StationsStore {
@@ -121,7 +195,7 @@ export class SupabaseStationsStore implements StationsStore {
   }
 
   async listStations(): Promise<Station[]> {
-    const { data, error } = await this.supabase.from("stations").select("id, name, active").order("name");
+    const { data, error } = await this.supabase.from("stations").select("id, name, active, display_order").order("display_order").order("name");
 
     if (error) {
       throw new Error(error.message);
@@ -133,7 +207,7 @@ export class SupabaseStationsStore implements StationsStore {
   async findStationById(stationId: string): Promise<Station | null> {
     const { data, error } = await this.supabase
       .from("stations")
-      .select("id, name, active")
+      .select("id, name, active, display_order")
       .eq("id", stationId)
       .maybeSingle<StationRow>();
 
@@ -145,10 +219,23 @@ export class SupabaseStationsStore implements StationsStore {
   }
 
   async createStation(station: StationInput): Promise<Station> {
+    let displayOrder = station.displayOrder;
+    if (!displayOrder) {
+      const { data: lastStation, error: lastStationError } = await this.supabase
+        .from("stations")
+        .select("display_order")
+        .order("display_order", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ display_order: number }>();
+
+      if (lastStationError) throw new Error(lastStationError.message);
+      displayOrder = (lastStation?.display_order ?? 0) + 1;
+    }
+
     const { data, error } = await this.supabase
       .from("stations")
-      .insert({ name: station.name, active: station.active })
-      .select("id, name, active")
+      .insert({ name: station.name, active: station.active, display_order: displayOrder })
+      .select("id, name, active, display_order")
       .single<StationRow>();
 
     if (error) {
@@ -161,9 +248,9 @@ export class SupabaseStationsStore implements StationsStore {
   async updateStation(stationId: string, station: StationInput): Promise<Station> {
     const { data, error } = await this.supabase
       .from("stations")
-      .update({ name: station.name, active: station.active })
+      .update({ name: station.name, active: station.active, display_order: station.displayOrder })
       .eq("id", stationId)
-      .select("id, name, active")
+      .select("id, name, active, display_order")
       .single<StationRow>();
 
     if (error) {

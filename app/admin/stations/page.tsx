@@ -8,6 +8,7 @@ import { AdminCard, EmptyState } from "@/app/admin/ui";
 import { IconStore, IconList, IconSearch } from "@/app/admin/icons";
 import { PendingSubmitButton } from "@/app/admin/pending-submit-button";
 import { CreateStationModal } from "@/app/admin/stations/create-station-modal";
+import { ReorderStationsModal } from "@/app/admin/stations/reorder-stations-modal";
 import { StationCard } from "@/app/admin/stations/station-card";
 import { FinalSurveyStationLink } from "@/app/admin/stations/final-survey-station-link";
 import { isFinalSurveyStationName } from "@/lib/shared/station";
@@ -46,7 +47,8 @@ export default async function StationsPage({
   const finalSurveyStation = dashboard.stations.find((station) => isFinalSurveyStationName(station.name));
   const exhibitionStations = dashboard.stations.filter((station) => !isFinalSurveyStationName(station.name));
   const totalStations = exhibitionStations.length;
-  const activeStations = exhibitionStations.filter((station) => station.active).length;
+  const activeStations = exhibitionStations.filter((station) => station.active);
+  const activeStationCount = activeStations.length;
 
   const filteredStations = exhibitionStations.filter((station) => {
     const matchesSearch = !q || station.name.toLowerCase().includes(q);
@@ -98,7 +100,7 @@ export default async function StationsPage({
           <article className="station-stat">
             <span className="station-stat__dot station-stat__dot--active" aria-hidden="true" />
             <div>
-              <strong>{activeStations}</strong>
+              <strong>{activeStationCount}</strong>
               <span>Active</span>
             </div>
           </article>
@@ -115,7 +117,15 @@ export default async function StationsPage({
                   : `${filteredStations.length} of ${totalStations} stations`}
               </p>
             </div>
-            <CreateStationModal redirectTo={redirectTo} />
+            <div className="stations-list-actions">
+              {activeStations.length > 1 && (
+                <ReorderStationsModal
+                  activeStations={activeStations}
+                  redirectTo={redirectTo}
+                />
+              )}
+              <CreateStationModal redirectTo={redirectTo} />
+            </div>
           </div>
 
           <form method="get" action="/admin/stations" className="stations-toolbar">
@@ -172,90 +182,14 @@ export default async function StationsPage({
             />
           ) : (
             <div className="station-cards">
-              {filteredStations.map((station, index) => {
-                return <StationCard key={station.id} station={station} index={index} redirectTo={redirectTo} />;
-                  /*
-                  <article key={station.id} className="station-card">
-                    <div className="station-card__number" aria-hidden="true">
-                      {String(index + 1).padStart(2, "0")}
-                    </div>
-
-                    <div className="station-card__content">
-                      <div className="station-card__topline">
-                        <div className="station-card__identity">
-                          <span className="station-card__icon" aria-hidden="true">
-                            <IconStore size={19} />
-                          </span>
-                          <div>
-                            <strong>{station.name}</strong>
-                            <span>Exhibition station</span>
-                          </div>
-                        </div>
-
-                        <div className="station-card__badges">
-                          <span
-                            className={`badge ${
-                              station.active ? "badge-success" : "badge-neutral"
-                            }`}
-                          >
-                            <span className="station-status-dot" aria-hidden="true" />
-                            {station.active ? "Active" : "Inactive"}
-                          </span>
-                          <Link href={stationHref} className="badge badge-info" target="_blank">
-                            Open station link
-                          </Link>
-                        </div>
-                      </div>
-
-                      <div className="row" style={{ marginTop: "0.75rem" }}>
-                        <Link href={stationHref} className="btn btn-ghost btn-sm" target="_blank">
-                          Open station page
-                        </Link>
-                      </div>
-
-                      <form action={editStationAction} className="station-card__form">
-                        <input type="hidden" name="redirectTo" value={redirectTo} />
-                        <input type="hidden" name="stationId" value={station.id} />
-
-                        <div className="field station-card__name-field">
-                          <label className="field-label" htmlFor={`station-${station.id}`}>
-                            Exhibition station name
-                          </label>
-                          <input
-                            id={`station-${station.id}`}
-                            name="name"
-                            className="input"
-                            defaultValue={station.name}
-                            required
-                          />
-                        </div>
-
-                        <label className="station-toggle station-toggle--compact">
-                          <input
-                            type="checkbox"
-                            name="active"
-                            value="true"
-                            defaultChecked={station.active}
-                          />
-                          <span className="station-toggle__track" aria-hidden="true">
-                            <span />
-                          </span>
-                          <span>
-                            <strong>Active</strong>
-                            <small>{station.active ? "Accepting stamps" : "Currently hidden"}</small>
-                          </span>
-                        </label>
-
-                        <PendingSubmitButton
-                          className="btn btn-primary station-card__save"
-                          pendingLabel="Saving…"
-                        >
-                          Save changes
-                        </PendingSubmitButton>
-                      </form>
-                    </div>
-                  </article>*/
-              })}
+              {filteredStations.map((station, index) => (
+                <StationCard
+                  key={station.id}
+                  station={station}
+                  index={index}
+                  redirectTo={redirectTo}
+                />
+              ))}
             </div>
           )}
         </section>

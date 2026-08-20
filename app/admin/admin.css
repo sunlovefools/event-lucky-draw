@@ -1651,6 +1651,225 @@
             flex-wrap: wrap;
           }
 
+          /* Station Reordering Modal */
+          .stations-list-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            flex-wrap: wrap;
+          }
+
+          .station-reorder-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-weight: 700;
+            border-radius: 12px;
+            white-space: nowrap;
+          }
+
+          .station-order-dialog {
+            width: min(34rem, calc(100vw - 2rem));
+            border: 1px solid #dce6f5;
+            border-radius: 20px;
+            padding: 1.35rem;
+            color: #172033;
+            background: #fff;
+            box-shadow: 0 24px 60px rgba(17, 26, 46, 0.24);
+          }
+
+          .station-order-dialog::backdrop {
+            background: rgb(15 23 42 / 52%);
+            backdrop-filter: blur(4px);
+          }
+
+          .station-order-dialog__header {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+          }
+
+          .station-order-dialog__header > div {
+            flex: 1;
+          }
+
+          .station-order-dialog__header .eyebrow {
+            margin: 0 0 0.15rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #2563eb;
+          }
+
+          .station-order-dialog__header h2 {
+            margin: 0;
+            color: #111a2e;
+            font-size: 1.25rem;
+            font-weight: 800;
+          }
+
+          .station-order-dialog__icon {
+            display: inline-grid;
+            place-items: center;
+            width: 42px;
+            height: 42px;
+            flex: 0 0 auto;
+            border-radius: 13px;
+            color: #2463eb;
+            background: #edf4ff;
+          }
+
+          .station-order-dialog__intro {
+            margin: 0.85rem 0 0;
+            color: #65738a;
+            font-size: 0.875rem;
+            line-height: 1.55;
+          }
+
+          .station-order-dialog__form {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1.1rem;
+          }
+
+          .station-order-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.55rem;
+            max-height: min(52vh, 400px);
+            overflow-y: auto;
+            padding: 4px 2px;
+          }
+
+          .station-order-empty {
+            padding: 1.5rem 1rem;
+            text-align: center;
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 12px;
+          }
+
+          .station-order-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.7rem 0.9rem;
+            background: #fff;
+            border: 1.5px solid #e1e9f5;
+            border-radius: 13px;
+            box-shadow: 0 2px 6px rgba(36, 72, 128, 0.04);
+            cursor: grab;
+            user-select: none;
+            transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+          }
+
+          .station-order-item:hover {
+            border-color: #93c5fd;
+            background: #f8faff;
+            transform: translateY(-1px);
+            box-shadow: 0 5px 14px rgba(36, 72, 128, 0.08);
+          }
+
+          .station-order-item.is-dragging {
+            opacity: 0.4;
+            border: 2px dashed #3b82f6;
+            background: #eff6ff;
+          }
+
+          .station-order-item.is-drag-over {
+            border-color: #2563eb;
+            background: #ebf3ff;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+          }
+
+          .station-order-item__left {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            min-width: 0;
+            flex: 1;
+          }
+
+          .station-order-item__handle {
+            display: inline-grid;
+            place-items: center;
+            color: #94a3b8;
+            width: 24px;
+            height: 24px;
+            flex: 0 0 auto;
+            cursor: grab;
+            transition: color 0.15s ease;
+          }
+
+          .station-order-item:hover .station-order-item__handle {
+            color: #3b82f6;
+          }
+
+          .station-order-item__index {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            flex: 0 0 auto;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #2563eb;
+            background: #eff6ff;
+            border: 1px solid #dbeafe;
+          }
+
+          .station-order-item__name {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: #1e293b;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .station-order-item__actions {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            flex: 0 0 auto;
+            margin-left: 0.5rem;
+          }
+
+          .station-order-item__arrow-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 7px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #64748b;
+            display: inline-grid;
+            place-items: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+          }
+
+          .station-order-item__arrow-btn:hover:not(:disabled) {
+            color: #2563eb;
+            background: #eff6ff;
+            border-color: #bfdbfe;
+          }
+
+          .station-order-item__arrow-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+          }
+
+          .station-order-dialog__actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-top: 0.4rem;
+          }
+
           /* Lucky draw settings and non-destructive animation preview */
           .draw-card-actions {
             gap: 0.6rem;
