@@ -75,11 +75,14 @@ export function extractRegistrationNumberFromBadgePayload(payload: string) {
   }
 
   try {
-    const url = new URL(trimmed);
+    // Badge generators may encode either an absolute URL or a relative payload
+    // such as `gen_qr?d=DLGT0001`. A base URL lets URLSearchParams handle both.
+    const url = new URL(trimmed, "https://badge.invalid");
     return normalizeRegistrationNumber(
       url.searchParams.get("registrationNumber") ??
         url.searchParams.get("registration_number") ??
         url.searchParams.get("reg") ??
+        url.searchParams.get("d") ??
         trimmed,
     );
   } catch {

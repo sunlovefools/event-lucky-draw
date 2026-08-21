@@ -75,6 +75,24 @@ describe("delegate registration and resume", () => {
     });
   });
 
+  it("extracts the delegate code from the badge generator QR payload", async () => {
+    const result = await identifyDelegate({
+      store: createStore({
+        async findDelegateByRegistrationNumber(registrationNumber) {
+          expect(registrationNumber).toBe("DLGT0001");
+          return { id: "delegate-1", registrationNumber, fullName: "Ada Lovelace" };
+        },
+      }),
+      badgePayload: "gen_qr?d=DLGT0001",
+      fullName: "",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      delegate: { registrationNumber: "DLGT0001", fullName: "Ada Lovelace" },
+    });
+  });
+
   it("creates a delegate session from manual registration number fallback when the account exists", async () => {
     const result = await registerOrResumeDelegate({
       store: createStore({

@@ -111,6 +111,28 @@ describe("vendor stamp scan", () => {
     });
   });
 
+  it("extracts the delegate code from the badge generator QR payload", async () => {
+    const result = await collectStampFromVendorScan({
+      store: createStore({
+        async findDelegateByRegistrationNumber(registrationNumber) {
+          expect(registrationNumber).toBe("DLGT0001");
+          return { id: "delegate-1", registrationNumber, fullName: "Ada Lovelace" };
+        },
+        async createDelegateStampIfMissing(delegateId, stationId, collectedAt) {
+          return { created: true, stamp: { id: "stamp-1", delegateId, stationId, collectedAt } };
+        },
+      }),
+      session: vendorSession,
+      badgePayload: "gen_qr?d=DLGT0001",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      delegate: { fullName: "Ada Lovelace" },
+      duplicate: false,
+    });
+  });
+
   it("treats a second scan of the same delegate as a duplicate", async () => {
     const result = await collectStampFromVendorScan({
       store: createStore({
